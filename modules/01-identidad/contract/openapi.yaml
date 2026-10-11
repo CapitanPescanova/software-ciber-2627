@@ -2,7 +2,7 @@ openapi: 3.0.3
 
 info:
   title: Identidad y secretos
-  version: 1.0.1
+  version: 1.0.2
   description: |
     API de autenticación, gestión de usuarios y acceso a secretos.
 
@@ -13,8 +13,8 @@ info:
     **Cómo validar desde otro módulo.** No decodifiquéis ni verifiquéis el token por vuestra
     cuenta: llamad a `GET /auth/validate` con la cabecera `Authorization: Bearer <token>`.
 
-    **Roles.** `normal`, `admin` y `servicio`. Los usuarios registrados por `POST /auth/register`
-    nacen con rol `normal`; las cuentas `admin` y `servicio` se precargan en el Sprint 1.
+    **Roles.** `admin`, `analista` y `servicio`. Los usuarios registrados por `POST /auth/register`
+    nacen con rol `analista`; las cuentas `admin` y `servicio` se precargan en el Sprint 1.
 
     **Secretos.** `GET /secrets/{clave}` solo está permitido al rol `servicio`.
 
@@ -48,7 +48,7 @@ paths:
   /auth/register:
     post:
       summary: Registro de un usuario
-      description: Registra una nueva cuenta de usuario con rol `normal` y devuelve un JWT.
+      description: Registra una nueva cuenta de usuario con rol `analista` y devuelve un JWT.
       operationId: register
       security: []
       requestBody:
@@ -322,11 +322,11 @@ components:
     Role:
       type: string
       enum:
-        - normal
+        - analista
         - admin
         - servicio
       description: Rol del usuario
-      example: normal
+      example: analista
 
     ValidateResponse:
       type: object

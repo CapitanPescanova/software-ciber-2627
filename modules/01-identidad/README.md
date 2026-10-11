@@ -1,4 +1,6 @@
-# Módulo 1 - Identidad y secretos (IAM + gestor de secretos) - **CypherGate**
+# Módulo 1 - Identidad y secretos (IAM + gestor de secretos)
+
+Equipo 01 - **CypherGate**
 
 Servicio transversal del que dependen los otros 7 módulos: **autenticación, roles y almacén de secretos**.
 
@@ -6,7 +8,7 @@ Servicio transversal del que dependen los otros 7 módulos: **autenticación, ro
 
 | Elemento | Estado |
 |---|---|
-| Contrato de la API (`contract/openapi.yaml`) | Publicado, v1.0.1 |
+| Contrato de la API (`contract/openapi.yaml`) | Publicado, v1.0.2 |
 | Resumen para los demás equipos (`shared/auth-contract.md`) | Publicado |
 | `GET /health` | Responde 200 (placeholder de la infraestructura del monorepo) |
 | Registro y login con JWT | En desarrollo |
@@ -19,9 +21,9 @@ Servicio transversal del que dependen los otros 7 módulos: **autenticación, ro
 ## Qué hace
 
 - Registro e inicio de sesión de usuarios y emisión de un **JWT**.
-- **Roles fijos:** `normal`, `admin`, `servicio`.
+- **Roles fijos:** `admin`, `analista`, `servicio`.
 - **Validación de token** para que el resto de módulos compruebe sesión y rol (`GET /auth/validate`).
-- **Almacén de secretos** clave-valor cifrado en reposo, con rotación manual, accesible solo al rol `servicio`.
+- **Almacén de secretos** clave-valor cifrado en reposo (AES), con rotación manual, accesible solo al rol `servicio`.
 - **Registro de accesos** a secretos (qué servicio pidió qué secreto y cuándo).
 
 **Fuera de alcance:** SSO con proveedores externos, MFA, rotación automática de secretos y permisos granulares por recurso.
@@ -31,7 +33,7 @@ Servicio transversal del que dependen los otros 7 módulos: **autenticación, ro
 | Método y ruta | Quién lo usa | Descripción |
 |---|---|---|
 | `GET /health` | CI y docker-compose | Estado del servicio |
-| `POST /auth/register` | Usuarios | Alta de usuario con rol `normal`; devuelve JWT |
+| `POST /auth/register` | Usuarios | Alta de usuario con rol `analista`; devuelve JWT |
 | `POST /auth/login` | Usuarios | Login; devuelve JWT |
 | `GET /auth/validate` | Los otros 7 módulos | Valida un token y devuelve usuario y rol |
 | `GET /secrets/{clave}` | Solo rol `servicio` | Devuelve un secreto descifrado |
@@ -49,14 +51,14 @@ curl http://localhost:8001/health
 ```
 Respuesta `200`: `{ "status": "ok", "module": "01-identidad" }`
 
-**Registro** (rol `normal`)
+**Registro** (rol `analista`)
 
 ```
 curl -X POST http://localhost:8001/auth/register \
   -H "Content-Type: application/json" \
   -d '{"username":"usuario.ejemplo","password":"contraseña-de-ejemplo","email":"usuario.ejemplo@ciberurjc.local"}'
 ```
-Respuesta `201`: `{ "token": "<jwt>", "user": { "id": 1, "username": "usuario.ejemplo", "email": "usuario.ejemplo@ciberurjc.local", "role": "normal" } }`
+Respuesta `201`: `{ "token": "<jwt>", "user": { "id": 1, "username": "usuario.ejemplo", "email": "usuario.ejemplo@ciberurjc.local", "role": "analista" } }`
 Errores: `400` datos incompletos o no válidos; `409` usuario o email ya existentes.
 
 **Login**
@@ -74,7 +76,7 @@ Errores: `400` falta usuario o contraseña; `401` credenciales incorrectas.
 ```
 curl http://localhost:8001/auth/validate -H "Authorization: Bearer <jwt>"
 ```
-Respuesta `200`: `{ "valid": true, "user_id": 1, "username": "usuario.ejemplo", "role": "normal" }`
+Respuesta `200`: `{ "valid": true, "user_id": 1, "username": "usuario.ejemplo", "role": "analista" }`
 Error `401`: `{ "valid": false, "error": "Token inválido" }`
 
 **Leer un secreto** (solo con un token de rol `servicio`)
@@ -89,7 +91,7 @@ Para probar sin el servicio real, levantad el mock con los ejemplos del contrato
 `npx @stoplight/prism-cli mock modules/01-identidad/contract/openapi.yaml -p 4010` y usad el puerto 4010 en lugar del 8001.
 
 ## Estructura de la carpeta
- 
+
 ```
 modules/01-identidad/
 ├── README.md        Este fichero
@@ -122,20 +124,16 @@ Los valores sensibles se leen de **variables de entorno**, nunca del código. El
 
 | Variable | Para qué | Estado |
 |---|---|---|
-| `[completar: JWT_SECRET]` | Clave de firma del JWT (HS256) | Propuesta de nombre |
-| `[completar: SECRETS_KEY]` | Clave AES para cifrar los secretos | Propuesta de nombre |
+| `JWT_SECRET` | Clave de firma del JWT (HS256) | Pendiente de implementar; se añadirá a `.env.example` sin valor real |
+| `SECRETS_KEY` | Clave AES para cifrar los secretos | Pendiente de implementar; se añadirá a `.env.example` sin valor real |
 
 ## Pruebas
 
-```
-[completar: comando de pruebas del equipo]
-```
-
-Los tests de los endpoints se añaden con cada historia. El CI del monorepo debe quedar en verde antes de fusionar.
+Todavía no hay pruebas automáticas del servicio: se añadirán con las historias de registro y login. Cuando existan, aquí se indicará el comando para ejecutarlas. Mientras tanto, el CI del monorepo comprueba que la imagen se construye y que `GET /health` responde 200, y debe quedar en verde antes de fusionar.
 
 ## Cómo contribuir
 
-1. Rama `equipo-01-identidad`.
+1. Rama `equipo-01-identidad` (o `equipo-01-identidad/AAA-NN-descripcion` si se renombra la rama base), con la clave de Jira en los commits.
 2. Pull Request a `main` con la clave Jira en el título, la checklist de Definition of Done y CI en verde.
 3. Revisión por otra persona. Los PRs de este módulo los revisa el equipo 8 (Pentesting).
 4. Si el PR cambia el contrato, avisar por Teams a los equipos consumidores.

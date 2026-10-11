@@ -1,88 +1,55 @@
-# Contrato de autenticación
+# Contrato del módulo 1 - Identidad y secretos
 
-**Versión:** 1.0.1 - Sprint 1
-**Fuente de verdad:** [`modules/01-identidad/contract/openapi.yaml`](../modules/01-identidad/contract/openapi.yaml). Si este resumen y el YAML difieren, manda el YAML.
-**Cambios:** por Pull Request, con aviso por Teams a los equipos que usen el endpoint.
+Equipo 01 - CypherGate. 
 
-## 1. Dónde está el servicio
+Fuente de verdad del contrato: [`openapi.yaml`](./openapi.yaml).
+Resumen para los demás módulos: [`shared/auth-contract.md`](../../../shared/auth-contract.md).
 
-- Desde tu máquina con `docker compose up`: `http://localhost:8001`
-- Entre contenedores del compose: el nombre del servicio del módulo 1 en `docker-compose.yml`, puerto interno `80`.
+## Qué hay en esta carpeta
 
-## 2. Endpoints
+| Fichero | Contenido |
+|---|---|
+| `openapi.yaml` | Contrato OpenAPI 3.0.3 de los endpoints del módulo |
+| `../mocks/` | Mocks y ejemplos para que los demás equipos programen sin esperar al servicio real |
 
-| Método y ruta | Auth | Para qué |
+## Endpoints
+
+| Método y ruta | Quién lo usa | Descripción |
 |---|---|---|
-| `GET /health` | No | Estado del servicio (lo usa el CI) |
-| `POST /auth/register` | No | Alta de usuario (rol `normal`) |
-| `POST /auth/login` | No | Login; devuelve un JWT |
-| `GET /auth/validate` | `Bearer` | **Lo usan los 7 módulos** para comprobar sesión y rol |
-| `GET /secrets/{clave}` | `Bearer` con rol `servicio` | Devuelve un secreto descifrado |
+| `GET /health` | CI y docker-compose | Estado del servicio (200) |
+| `POST /auth/register` | Usuarios | Alta de usuario con rol `analista`; devuelve JWT |
+| `POST /auth/login` | Usuarios | Login; devuelve JWT |
+| `GET /auth/validate` | Los otros 7 módulos | Valida un token y devuelve usuario y rol |
+| `GET /secrets/{clave}` | Solo rol `servicio` | Devuelve un secreto descifrado |
 
-## 3. Cómo usarlo desde tu módulo
+## Cómo verlo, comprobarlo y probarlo
 
-1. El usuario o servicio obtiene un token con `POST /auth/login`:
+Los comandos requieren Node.js.
 
-   ```
-   curl -X POST http://localhost:8001/auth/login \
-     -H "Content-Type: application/json" \
-     -d '{"username":"usuario.ejemplo","password":"contraseña-de-ejemplo"}'
-   ```
+- **Ver el contrato:** pegar `openapi.yaml` en <https://editor.swagger.io>.
+- **Comprobar que es válido:** `npx @redocly/cli lint modules/01-identidad/contract/openapi.yaml`
+- **Levantar un mock con los ejemplos del contrato:**
+  `npx @stoplight/prism-cli mock modules/01-identidad/contract/openapi.yaml -p 4010`
+  y probar, por ejemplo, `curl http://localhost:4010/health`.
 
-   Respuesta `200`: `{ "token": "<jwt>", "user": { "id": 1, "username": "...", "email": "...", "role": "normal" } }`
+## Decisiones del Sprint 1 (v1.0.2)
 
-2. Cada petición a tu API llega con `Authorization: Bearer <jwt>`.
-3. Tu módulo comprueba el token llamando a nuestro servicio **sin decodificarlo por su cuenta**:
-
-   ```
-   curl http://localhost:8001/auth/validate -H "Authorization: Bearer <jwt>"
-   ```
-
-   - `200`: `{ "valid": true, "user_id": 1, "username": "...", "role": "normal" }` → dejar pasar según el rol.
-   - `401`: `{ "valid": false, "error": "..." }` → rechazar la petición.
-
-## 4. Roles
-
-| Rol | Cómo se obtiene en el Sprint 1 | Permisos |
+| Tema | Decisión | Cambio |
 |---|---|---|
-| `normal` | Registro con `POST /auth/register` | Usuario del sistema |
-| `admin` | Cuenta precargada | Administración |
-| `servicio` | Cuenta precargada | Puede leer secretos con `GET /secrets/{clave}` |
+| Token | JWT HS256, caducidad 30 min | Se avisa por PR y Teams |
+| Roles | `admin`, `analista`, `servicio` (los de `shared/auth-contract.md`) | Se avisa por PR y Teams |
+| Identificador de usuario | Entero en todo el contrato (`id` y `user_id`) | — |
+| Acceso a secretos | Solo rol `servicio` | Pendiente de confirmar con el profesorado |
+| Validación desde otros módulos | Siempre llamando a `GET /auth/validate` | — |
 
-Los nombres de rol son exactos y en minúsculas: comprobad ese valor literal.
+## Cómo proponer cambios
 
-## 5. Token
+1. Abrir un Pull Request modificando `openapi.yaml` con la clave de Jira en el título (por ejemplo `AAA-NN`).
+2. Avisar por Teams a los equipos que consumen el endpoint afectado.
+3. Esperar su confirmación antes de fusionar si el cambio rompe compatibilidad.
 
-- JWT firmado con HS256. Claims: `sub` (usuario), `role`, `iat`, `exp`.
-- Caducidad: 30 minutos.
-- La clave de firma es secreta y no sale del módulo 1: por eso se valida llamando a `/auth/validate`.
+## Historial
 
-## 6. Errores
-
-- Formato general: `{ "error": "<mensaje>" }` con el código HTTP adecuado (400, 401, 403, 404, 409, 500).
-- En `/auth/validate`: `{ "valid": false, "error": "<mensaje>" }`.
-
-## 7. Secretos y cuentas de servicio
-
-- `GET /secrets/{clave}` solo responde `200` al rol `servicio`. Con otro rol devuelve `403`.
-- Las cuentas de servicio son precargadas. **Pedid las credenciales por Teams al equipo 01** y guardadlas en variables de entorno o en un `.env` ignorado por Git. **El repositorio es público: nunca subáis credenciales reales.**
-
-## 8. Mock para programar sin esperarnos
-
-Mientras el servicio real no esté terminado, levantad un mock con los ejemplos del contrato:
-
-```
-npx @stoplight/prism-cli mock modules/01-identidad/contract/openapi.yaml -p 4010
-```
-
-Disponible desde: **[completar fecha al publicar]**.
-
-## 9. Pendiente o por confirmar
-
-- Que admin no necesite leer secretos (pendiente de confirmar con el profesorado).
-- Límite de intentos de login y rotación manual de secretos (Sprints 2 y 3).
-- El formato común de evento (`shared/event-schema.json`) no afecta a este módulo, que no publica eventos.
-
-## 10. Contacto
-
-Equipo 01 - CypherGate. Jira: proyecto AAA. Dudas o peticiones de cambio por WhatsApp y por Pull Request.
+- **1.0.2** (10/10/2026): el rol de los usuarios registrados pasa de `normal` a `analista`, para coincidir con los roles de `shared/auth-contract.md` (`admin`, `analista`, `servicio`).
+- **1.0.1** (10/10/2026): se añade `GET /health`, se unifica el tipo del identificador, se restringe `/secrets/{clave}` al rol `servicio` y se documenta el JWT.
+- **1.0.0**: versión inicial con login, registro, validación y secretos.
