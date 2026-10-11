@@ -1,114 +1,58 @@
-# HU2 · Contrato de integración del SIEM (SEM-6)
+# Contrato del mock SIEM · Sprint 1 · SEM-6
 
-Versión: `0.1.0-draft`. Estado: **propuesta revisable, pendiente de acuerdos y publicación**.
+Versión `0.2.0-sprint1-review`. Candidato de integración pendiente de ratificación intergrupo, revisión cruzada y aceptación del PO.
 
-Este contrato permite a IDS, Honeypot y Escáner preparar el envío de eventos, y a SOAR y Dashboard preparar la consulta de alertas. Describe la interfaz; no implementa recepción, almacenamiento ni correlación.
+## Interfaz
 
-## Ubicación y fuentes
-
-Publicar estos archivos en `modules/05-siem/contract/` y los datos de ejemplo en `modules/05-siem/mocks/`. La carpeta se ha confirmado en la copia local del repositorio compartido. La rama debe pertenecer al equipo 5 e incluir `SEM-6`, siguiendo la convención existente.
-
-Se han utilizado los tres JSON de `alertas_grupos/` y `mock_alertas_siem_soar.json`. Los originales se conservan sin cambios. El ejemplo IDS es simulado y está pendiente de confirmar con el grupo 2. Honeypot y Escáner son los ejemplos adaptados disponibles en el proyecto; no se presentan como datos reales de producción.
-
-**Los recursos compartidos recibidos son placeholders.** `shared/event-schema.json` utiliza JSON Schema draft-07 y solo exige `type: object`: no fija claves ni tipos internos. `shared/auth-contract.md` enumera `/auth/login`, `/auth/validate` y `/secrets/{clave}`, con cuerpos de petición/respuesta pendientes, y los roles `admin`, `analista`, `servicio`. El esquema incluido en `openapi.json` es una propuesta más concreta y compatible con la condición actual de que un evento sea un objeto; eso no demuestra que exista un acuerdo definitivo. Antes de aprobar el contrato, acordar los campos y la autenticación con los equipos responsables. Esta propuesta no sustituye ni modifica los recursos compartidos.
-
-## Direcciones y transporte
-
-- Dirección local confirmada en el README del módulo: `http://localhost:8005`.
-- Puerto interno que debe conservar el servicio: `80`.
-- Peticiones y respuestas JSON: `Content-Type: application/json`.
-- Autenticación: pendiente de completar el contrato de Identidad. Los roles disponibles son `admin`, `analista` y `servicio`, pero no se ha acordado su asignación a los endpoints del SIEM ni el formato de credencial. Su ausencia en este borrador no constituye autorización para acceder sin autenticar.
-
-## Endpoints
-
-| Método y ruta | Consumidores | Resultado |
+| Método | Ruta | Respuesta |
 | --- | --- | --- |
-| `GET /health` | Infraestructura y CI | `200`, con `{"status":"ok","module":"05-siem"}`. Nombre confirmado en la configuración del placeholder. |
-| `POST /events` | IDS, Honeypot y Escáner | Recibe **un objeto por petición**, valida y registra un evento. |
-| `GET /alerts` | SOAR y Dashboard | `200`, con `{"alerts": [...]}`; sin alertas, `{"alerts": []}`. |
-| `GET /alerts/{id}` | SOAR y Dashboard | `200`, con un objeto de alerta, o `404` si no existe. `id` es su `alert_id`. |
+| GET | `/health` | 200 con `status: ok` y `module: 05-siem` |
+| POST | `/events` | 200 para eventos válidos, 400 para cuerpos/eventos inválidos, 415 para un Content-Type incorrecto |
+| GET | `/alerts` | 200 con `{"alerts": [...]}` |
+| GET | `/alerts/{id}` | 200 con una alerta o 404 con `error.code: ALERT_NOT_FOUND` |
 
-En esta versión no se proponen filtros, paginación ni orden garantizado. Los consumidores deben identificar las alertas mediante `alert_id`, nunca por su posición en la lista.
+Acceso local `http://localhost:8005`; red Docker `http://siem:80`.
 
-## Entrada: evento de seguridad
+## Evento común
 
-Todos los campos de la siguiente tabla son obligatorios. Se valida por nombre, sin depender del orden. Las claves superiores extra se rechazan en esta propuesta; `details` conserva los datos específicos del productor.
+Un objeto JSON por petición, con `event_id`, `timestamp`, `source`, `event_type`, `severity`, `title`, `description` y `details`. Los textos comunes no pueden ser vacíos; `event_id` no exige UUID. `timestamp` es una fecha válida UTC terminada en Z. `source` acepta `ids`, `honeypot` o `scanner`; `severity` acepta `low`, `medium`, `high` o `critical`. `details` es un objeto que conserva campos específicos y valores nulos. Las claves superiores desconocidas se rechazan en este candidato; ratificar esta política con los productores.
 
-| Campo | Tipo | Regla propuesta |
-| --- | --- | --- |
-| `event_id` | string no vacío | Identificador único dentro de `source`, estable en los reintentos. No se exige UUID: el Honeypot utiliza un identificador `HP-…`. |
-| `timestamp` | string | Fecha y hora válidas en UTC, terminadas en `Z`, por ejemplo `2026-09-22T18:30:15Z`. |
-| `source` | string | `ids`, `honeypot` o `scanner`. Identifica al productor. |
-| `event_type` | string no vacío | Ejemplos: `port_scan`, `fuerza_bruta`, `vulnerability_detected`. Catálogo compartido pendiente. |
-| `severity` | string | `low`, `medium`, `high` o `critical`, pendiente de ratificar con el esquema compartido. |
-| `title` | string no vacío | Resumen legible. |
-| `description` | string no vacío | Explicación legible. |
-| `details` | object | Datos específicos del productor; puede contener campos nulos. Su validación interna queda pendiente de los acuerdos por productor. |
-
-El archivo original `eventos_unificados.json`, con valores `null`, es una plantilla y no una petición válida. No se aceptan lotes ni un contenedor `{"events": [...]}` en este endpoint.
-
-### Respuestas de POST /events
-
-Las siguientes respuestas y la política de duplicados son **decisiones propuestas**, pendientes de aceptación:
-
-| Código | Significado |
+| Grupo | Ejemplo de datos específicos |
 | --- | --- |
-| `201` | Evento nuevo registrado: `{"status":"accepted","source":"honeypot","event_id":"HP-981839239323"}`. |
-| `200` | Reintento idéntico ya registrado: mismo formato, con `status: "duplicate"`. No crea otro evento. |
-| `400` | El cuerpo no se puede interpretar como JSON. |
-| `415` | Tipo de contenido distinto de `application/json`. |
-| `422` | JSON válido que incumple el esquema. |
-| `409` | Ya existe la misma pareja `(source, event_id)` con contenido distinto. |
-| `500` | Error interno. |
+| G2 IDS | `rule_id`, `source_ip`, `target_ip`, `protocol`, `distinct_ports_count`, `window_seconds` |
+| G3 Honeypot | `source_ip`, `service`, `username`, `credential`, `command` |
+| G4 Escáner | `target`, `scan_id`, `tool`, `profile`, `script_id`, `evidence`, `cve`, `cvss` |
 
-La igualdad de contenido se comprueba sobre el JSON interpretado, ignorando el orden de las claves. La confirmación de un evento no garantiza que se haya generado una alerta: esa decisión corresponde a la correlación. El registro real del evento es trabajo de implementación, no una funcionalidad disponible por publicar este documento.
+La validación de Sprint 1 comprueba la cabecera y que `details` sea un objeto. Reglas internas por productor y catálogo de `event_type` requieren acuerdo antes del servicio real.
 
-## Salida: alertas
+## Acuse y errores
 
-Cada alerta incluye la cabecera del evento (`event_id`, `timestamp`, `source`, `event_type`, `severity`, `title`, `description`, `details`) y además:
-
-| Campo | Tipo | Significado |
-| --- | --- | --- |
-| `alert_id` | string no vacío | Identificador estable asignado por SIEM; SOAR lo usa para evitar incidentes repetidos. |
-| `source_ip` | string IPv4 o null | IP de origen observada. En IDS y Honeypot procede de `details.source_ip`. |
-| `target_ip` | string IPv4 o null | Activo de destino. En IDS procede de `details.target_ip`; en Escáner, de `details.target.ip`. |
-
-`timestamp` conserva el momento de detección del evento original. No es la fecha de creación o resolución del incidente. `details` conserva íntegramente los datos específicos del evento.
-
-Para Escáner, `source_ip` es `null`: la IP escaneada es el activo y no se debe usar como IP atacante. En el ejemplo Honeypot, `target_ip` es `null` porque no se recibió ese dato. Este borrador cubre IPv4 y una alerta basada en un evento; el formato de alertas correlacionadas de varios eventos deberá acordarse antes de implementarlas.
-
-## Errores
-
-Formato propuesto común para errores de negocio y validación:
+El 200/400 sigue lo comunicado a G3 y la historia SEM-10. El evento no se almacena ni genera una alerta. Los reintentos válidos también devuelven 200. El formato del acuse se ha conservado de la implementación de ingesta, con mensajes en inglés:
 
 ```json
-{"error":{"code":"VALIDATION_ERROR","message":"El evento no cumple el esquema."}}
+{"status":"success","message":"Event received successfully (mock)","event_id":"HP-981839239323"}
 ```
 
-Códigos propuestos: `INVALID_JSON`, `UNSUPPORTED_MEDIA_TYPE`, `VALIDATION_ERROR`, `EVENT_CONFLICT`, `ALERT_NOT_FOUND`, `INTERNAL_ERROR`. Los errores de autenticación y autorización se incorporarán cuando Identidad complete `shared/auth-contract.md`.
+Los errores siguen el formato común del borrador:
 
-## Ejemplos y mock
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"The event does not match the required schema"}}
+```
 
-- `examples/grupo_2_ids_ejemplo_propuesto.json`: petición IDS simulada.
-- `examples/grupo_3_honeypot.json`: petición Honeypot.
-- `examples/grupo_4_scanner.json`: petición Escáner.
-- `../mocks/alerts.json`: cuerpo fijo de respuesta para `GET /alerts`, con las tres alertas existentes.
-- `openapi.json`: rutas, esquemas y ejemplos en OpenAPI 3.1.0. Referencia del estándar: <https://spec.openapis.org/oas/v3.1.0.html>.
+Códigos del mock: `INVALID_JSON`, `VALIDATION_ERROR`, `UNSUPPORTED_MEDIA_TYPE` y `ALERT_NOT_FOUND`. Los errores internos imprevistos no tienen un formato garantizado en esta versión.
 
-`alerts.json` es un archivo estático. El placeholder actual implementa `/health` y devuelve un mensaje genérico en las demás rutas; publicar estos archivos no habilita los endpoints de la API ni pone en marcha un servidor mock.
+## Alertas para G6 y G7
 
-## Cierre de la HU2
+Cada alerta conserva todos los campos del evento y añade `alert_id`, `source_ip` y `target_ip`. IDS toma las IP de `details`; Honeypot tiene destino null; Escáner tiene origen null y destino `details.target.ip`. No añadir `status`, `priority`, `risk_score`, `recommended_action` ni `related_events` sin acuerdo.
 
-Lista provisional, a contrastar con los criterios reales de SEM-6:
+`GET /alerts` utiliza `mocks/alerts.json`, con tres ejemplos completos. `GET /alerts/{id}` usa el identificador exacto, sensible a mayúsculas y minúsculas. El JSON estático no cambia después de POST /events.
 
-- [ ] Incorporar los criterios de aceptación de la tarjeta.
-- [x] Confirmar carpeta `modules/05-siem/`, nombre `05-siem` y puerto `8005` en la copia local del repositorio.
-- [ ] Alinear la entrada con `shared/event-schema.json` y confirmar el ejemplo IDS.
-- [ ] Incorporar la autenticación de `shared/auth-contract.md`.
-- [ ] Acordar formatos y respuestas con productores, SOAR y Dashboard.
-- [ ] Publicar el contrato y ejemplos en la rama del equipo con `SEM-6` en rama y commit.
-- [ ] Abrir PR a `main`; comprobar `build-and-health` y `event-schema` en verde.
-- [ ] Obtener la revisión cruzada: según el anillo indicado, el equipo 4 revisa el PR del equipo 5; verificar `CODEOWNERS`.
-- [ ] Verificar los criterios con el PO delegado y completar el flujo de aprobación del repositorio.
+## Acuerdos pendientes
 
-No se acredita publicación, acuerdo entre grupos, ejecución de CI ni aprobación mientras no existan sus evidencias.
+- Ratificar respuestas, formato del acuse, claves extra y catálogos con G2/G3/G4/G6/G7.
+- Confirmar que G6/G7 consultan mediante GET, y verificarlo contra sus servicios.
+- Negociar con G1 el formato de credenciales y los roles de cada endpoint.
+- Revisar el esquema local y coordinar su adopción en `shared/event-schema.json`, mantenido fuera de esta propuesta del módulo.
+- Definir persistencia, deduplicación y correlación en las historias posteriores. El borrador 0.1.0 propuso 201/422/409; no son respuestas del mock actual.
+
+Los ejemplos son simulados de laboratorio. Su presencia, las pruebas locales y el contrato no sustituyen el acuerdo entre equipos ni la aprobación del PR.

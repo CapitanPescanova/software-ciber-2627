@@ -9,6 +9,7 @@ RUN chmod +x mvnw
 RUN ./mvnw dependency:go-offline
 
 COPY src src
+COPY mocks mocks
 
 RUN ./mvnw clean package -DskipTests
 RUN cp target/*.jar app.jar

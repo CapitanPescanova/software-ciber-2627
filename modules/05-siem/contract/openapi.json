@@ -2,14 +2,18 @@
   "openapi": "3.1.0",
   "info": {
     "title": "SIEM · Contrato de integración (SEM-6)",
-    "version": "0.1.0-draft",
-    "description": "Propuesta basada en los ejemplos disponibles. Esquema compartido y autenticación siguen como placeholders. Este documento no implementa endpoints. Nombre y puerto confirmados en la copia local del repositorio. Confirmar respuestas, idempotencia y acuerdos intergrupo antes de aprobar."
+    "version": "0.2.0-sprint1-review",
+    "description": "Sprint 1 mock candidate aligned with the communicated 200/400 behavior. Intergroup ratification and PO acceptance are pending. No persistence, correlation or authentication is implemented."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "servers": [
     {
       "url": "http://localhost:8005",
-      "description": "Dirección local confirmada en el README del módulo SIEM."
+      "description": "Local access"
+    },
+    {
+      "url": "http://siem:80",
+      "description": "Docker network ciberurjc"
     }
   ],
   "x-status": "draft-pending-agreement",
@@ -40,8 +44,8 @@
     "/events": {
       "post": {
         "operationId": "receiveEvent",
-        "summary": "Registrar un evento de seguridad",
-        "description": "Un objeto por petición. Política propuesta: deduplicar por (source, event_id); reintento idéntico devuelve 200, contenido distinto 409. No garantiza la creación de una alerta.",
+        "summary": "Receive a mock security event",
+        "description": "One event per request. Returns 200 without persistence, deduplication or alert generation. Invalid event bodies return 400.",
         "requestBody": {
           "required": true,
           "content": {
@@ -121,47 +125,44 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "Evento nuevo registrado.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EventReceipt"
-                },
-                "example": {
-                  "status": "accepted",
-                  "source": "honeypot",
-                  "event_id": "HP-981839239323"
-                }
-              }
-            }
-          },
           "200": {
-            "description": "Evento idéntico ya registrado; no se duplica.",
+            "description": "Mock event received; nothing is stored.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EventReceipt"
                 },
                 "example": {
-                  "status": "duplicate",
-                  "source": "honeypot",
+                  "status": "success",
+                  "message": "Event received successfully (mock)",
                   "event_id": "HP-981839239323"
                 }
               }
             }
           },
           "400": {
-            "description": "JSON mal formado.",
+            "description": "Malformed JSON or invalid event, including missing fields, unsupported values or invalid UTC timestamp.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
-                "example": {
-                  "error": {
-                    "code": "INVALID_JSON",
-                    "message": "El cuerpo no es JSON válido."
+                "examples": {
+                  "INVALID_JSON": {
+                    "value": {
+                      "error": {
+                        "code": "INVALID_JSON",
+                        "message": "The body must match the JSON event structure"
+                      }
+                    }
+                  },
+                  "VALIDATION_ERROR": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The event does not match the required schema"
+                      }
+                    }
                   }
                 }
               }
@@ -177,55 +178,7 @@
                 "example": {
                   "error": {
                     "code": "UNSUPPORTED_MEDIA_TYPE",
-                    "message": "Se requiere application/json."
-                  }
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "El evento incumple el esquema.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                },
-                "example": {
-                  "error": {
-                    "code": "VALIDATION_ERROR",
-                    "message": "El evento no cumple el esquema."
-                  }
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Mismo identificador con otro contenido.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                },
-                "example": {
-                  "error": {
-                    "code": "EVENT_CONFLICT",
-                    "message": "Ya existe el evento con contenido distinto."
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Error interno.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                },
-                "example": {
-                  "error": {
-                    "code": "INTERNAL_ERROR",
-                    "message": "No se ha podido completar la operación."
+                    "message": "Content-Type must be application/json"
                   }
                 }
               }
@@ -319,22 +272,6 @@
                 }
               }
             }
-          },
-          "500": {
-            "description": "Error interno.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                },
-                "example": {
-                  "error": {
-                    "code": "INTERNAL_ERROR",
-                    "message": "No se ha podido completar la operación."
-                  }
-                }
-              }
-            }
           }
         }
       }
@@ -396,23 +333,7 @@
                 "example": {
                   "error": {
                     "code": "ALERT_NOT_FOUND",
-                    "message": "No existe la alerta solicitada."
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Error interno.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                },
-                "example": {
-                  "error": {
-                    "code": "INTERNAL_ERROR",
-                    "message": "No se ha podido completar la operación."
+                    "message": "The requested alert does not exist"
                   }
                 }
               }
@@ -577,24 +498,17 @@
         "additionalProperties": false,
         "required": [
           "status",
-          "source",
+          "message",
           "event_id"
         ],
         "properties": {
           "status": {
             "type": "string",
-            "enum": [
-              "accepted",
-              "duplicate"
-            ]
+            "const": "success"
           },
-          "source": {
+          "message": {
             "type": "string",
-            "enum": [
-              "ids",
-              "honeypot",
-              "scanner"
-            ]
+            "minLength": 1
           },
           "event_id": {
             "type": "string",
@@ -623,7 +537,6 @@
                   "INVALID_JSON",
                   "UNSUPPORTED_MEDIA_TYPE",
                   "VALIDATION_ERROR",
-                  "EVENT_CONFLICT",
                   "ALERT_NOT_FOUND",
                   "INTERNAL_ERROR"
                 ]

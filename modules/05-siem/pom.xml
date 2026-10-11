@@ -52,6 +52,10 @@
 	</dependencies>
 
 	<build>
+        <resources>
+            <resource><directory>src/main/resources</directory></resource>
+            <resource><directory>mocks</directory><targetPath>mocks</targetPath><includes><include>*.json</include></includes></resource>
+        </resources>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
