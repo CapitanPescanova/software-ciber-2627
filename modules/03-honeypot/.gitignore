@@ -1,8 +1,0 @@
-target/
-data/
-*.mv.db
-*.trace.db
-.env
-.env.*
-!.env.example
-.vscode/
