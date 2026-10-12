@@ -42,6 +42,9 @@ public class LoginAttempt {
 	@Column(name = "user_agent", length = 512)
 	private String userAgent;
 
+	@Column(name = "enviado",nullable = false, columnDefinition = "boolean default false")
+	private boolean enviado = false;
+
 	public LoginAttempt() {
 	}
 
@@ -119,5 +122,13 @@ public class LoginAttempt {
 
 	public void setUserAgent(String userAgent) {
 		this.userAgent = userAgent;
+	}
+
+	public boolean isEnviado() {
+		return enviado;
+	}
+
+	public void setEnviado(boolean enviado) {
+		this.enviado = enviado;
 	}
 }
