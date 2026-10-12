@@ -11,9 +11,9 @@ Servicio transversal del que dependen los otros 7 módulos: **autenticación, ro
 | Contrato de la API (`contract/openapi.yaml`) | Publicado, v1.0.2 |
 | Resumen para los demás equipos (`shared/auth-contract.md`) | Publicado |
 | `GET /health` | Responde 200 (placeholder de la infraestructura del monorepo) |
-| Registro y login con JWT | En desarrollo |
-| Validación de token | Contrato definido; implementación en el Sprint 2 |
-| Secretos cifrados y registro de accesos | Sprint 2 |
+| `POST /auth/register` y `POST /auth/login` (JWT HS256, 30 min) | Implementados, con tests (PR AAA-19 / AAA-18 / AAA-3) |
+| `GET /auth/validate` | Implementado (adelanto del Sprint 2, AAA-20 se formaliza allí) |
+| `GET /secrets/{clave}` (solo rol `servicio`, AES-GCM) | Implementado; registro de accesos en el Sprint 2 |
 | Rotación manual de secretos y mínimo privilegio | Sprint 3 |
 
 > Este README se actualiza en cada Pull Request que cambie el comportamiento del módulo.
