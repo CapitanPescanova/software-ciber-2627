@@ -1,0 +1,14 @@
+{
+  "event_id": "a8f3b210-4e31-4c28-98e1-512c019d45a1",
+  "timestamp": "2026-10-12T14:30:00Z",
+  "source": "honeypot-login-03",
+  "source_ip": "192.168.1.45",
+  "service": "http-login",
+  "severity": "media",
+  "event_type": "fuerza_bruta",
+  "details": {
+    "endpoint": "/login",
+    "username": "admin",
+    "password": "Password123"
+  }
+}

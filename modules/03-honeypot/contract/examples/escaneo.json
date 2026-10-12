@@ -1,0 +1,15 @@
+
+{
+  "event_id": "c6e1f098-2a53-4b30-76b3-734e037f67c3",
+  "timestamp": "2026-10-12T14:32:40Z",
+  "source": "honeypot-login-03",
+  "source_ip": "192.168.1.105",
+  "service": "http-login",
+  "severity": "baja",
+  "event_type": "escaneo",
+  "details": {
+    "endpoint": "/login",
+    "username": "",
+    "password": ""
+  }
+}
