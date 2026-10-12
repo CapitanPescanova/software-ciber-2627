@@ -1,4 +1,3 @@
-# Contrato de API
 
 # Contrato de Eventos del Honeypot
 
