@@ -16,37 +16,42 @@ class EventoMapperTest {
     private final EventoMapper mapper = new EventoMapper(objectMapper);
 
     @Test
-    @DisplayName("Convierte LoginAttempt y comprueba los 8 campos del contrato")
-    void shouldConvertLoginAttemptToContractEventWithAll8Fields() {
+    @DisplayName("Convierte LoginAttempt al contrato comun SIEM con los 8 campos raiz")
+    void shouldMapToSiemCommonContract() {
         Instant ahora = Instant.parse("2026-10-12T15:00:00Z");
 
         LoginAttempt attempt = new LoginAttempt();
+        attempt.setId(42L);
         attempt.setOccurredAt(ahora);
         attempt.setSourceIp("192.168.1.100");
         attempt.setServiceAttacked("honeypot-web");
         attempt.setUsername("admin");
         attempt.setCredentialAttempt("secreto123");
+        attempt.setAttemptedCommand(null);
         attempt.setRequestPath("/login");
         attempt.setUserAgent("Mozilla/5.0");
 
         String eventType = "fuerza_bruta";
-        String severity = "media";
+        String severity = "medium";
 
-        EventoContrato evento = mapper.mapearAEvento(attempt, eventType, severity, "uuid-test-1234");
+        EventoContrato evento = mapper.mapearAEvento(attempt, eventType, severity);
 
-        // Al ser record en Java moderno, se accede directamente con nombreCampo()
-        assertNotNull(evento.eventId());
-        assertEquals("uuid-test-1234", evento.eventId());
+        // 8 campos raiz
+        assertEquals("HP-42", evento.eventId());
         assertEquals("2026-10-12T15:00:00Z", evento.timestamp());
-        assertEquals("honeypot-login-03", evento.source());
-        assertEquals("192.168.1.100", evento.sourceIp());
-        assertEquals("honeypot-web", evento.service());
-        assertEquals("media", evento.severity());
+        assertEquals("honeypot", evento.source());
         assertEquals("fuerza_bruta", evento.eventType());
+        assertEquals("medium", evento.severity());
+        assertEquals("Intento de acceso en el login falso", evento.title());
+        assertEquals("Intento desde 192.168.1.100 con el usuario admin", evento.description());
 
+        // details
         assertNotNull(evento.details());
+        assertEquals("192.168.1.100", evento.details().get("source_ip"));
+        assertEquals("honeypot-web", evento.details().get("service"));
         assertEquals("admin", evento.details().get("username"));
-        assertEquals("secreto123", evento.details().get("password"));
+        assertEquals("secreto123", evento.details().get("credential"));
+        assertNull(evento.details().get("command"));
         assertEquals("/login", evento.details().get("ruta"));
         assertEquals("Mozilla/5.0", evento.details().get("navegador"));
     }

@@ -7,9 +7,9 @@ public record EventoContrato(
     @JsonProperty("event_id") String eventId,
     String timestamp,
     String source,
-    @JsonProperty("source_ip") String sourceIp,
-    String service,
-    String severity,
     @JsonProperty("event_type") String eventType,
+    String severity,
+    String title,
+    String description,
     Map<String, Object> details
 ) {}

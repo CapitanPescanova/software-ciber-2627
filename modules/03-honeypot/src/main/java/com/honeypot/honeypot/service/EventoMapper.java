@@ -9,12 +9,11 @@ import org.springframework.stereotype.Component;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.UUID;
 
 @Component
 public class EventoMapper {
 
-    private static final String DEFAULT_SOURCE = "honeypot-login-03";
+    private static final String SOURCE = "honeypot";
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_INSTANT;
     private final ObjectMapper objectMapper;
 
@@ -22,40 +21,37 @@ public class EventoMapper {
         this.objectMapper = objectMapper;
     }
 
-    /**
-     * Mapea un LoginAttempt al formato formal del contrato de eventos.
-     */
-    public EventoContrato mapearAEvento(LoginAttempt attempt, String eventType, String severity, String fixedEventId) {
-        String eventId = (fixedEventId != null) ? fixedEventId : UUID.randomUUID().toString();
+    public EventoContrato mapearAEvento(LoginAttempt attempt, String eventType, String severity) {
+        String eventId = (attempt.getId() != null) ? "HP-" + attempt.getId() : "HP-0";
 
         String timestamp = (attempt.getOccurredAt() != null)
                 ? ISO_FORMATTER.format(attempt.getOccurredAt())
                 : "";
-        String user = attempt.getUsername() != null ? attempt.getUsername() : "";
-        String pass = attempt.getCredentialAttempt() != null ? attempt.getCredentialAttempt() : "";
-        String ruta = attempt.getRequestPath() != null ? attempt.getRequestPath() : "/login";
-        String navegador = attempt.getUserAgent() != null ? attempt.getUserAgent() : "";
+
+        String ip = (attempt.getSourceIp() != null) ? attempt.getSourceIp() : "";
+        String user = (attempt.getUsername() != null) ? attempt.getUsername() : "";
+        String title = "Intento de acceso en el login falso";
+        String description = "Intento desde " + ip + " con el usuario " + user;
 
         Map<String, Object> details = new LinkedHashMap<>();
-        details.put("username", user);
-        details.put("password", pass);
-        details.put("ruta", ruta);
-        details.put("navegador", navegador);
+        details.put("source_ip", attempt.getSourceIp());
+        details.put("service", attempt.getServiceAttacked());
+        details.put("username", attempt.getUsername());
+        details.put("credential", attempt.getCredentialAttempt());
+        details.put("command", attempt.getAttemptedCommand());
+        details.put("ruta", attempt.getRequestPath());
+        details.put("navegador", attempt.getUserAgent());
 
         return new EventoContrato(
                 eventId,
                 timestamp,
-                DEFAULT_SOURCE,
-                attempt.getSourceIp(),
-                attempt.getServiceAttacked(),
-                severity,
+                SOURCE,
                 eventType,
+                severity,
+                title,
+                description,
                 details
         );
-    }
-
-    public EventoContrato mapearAEvento(LoginAttempt attempt, String eventType, String severity) {
-        return mapearAEvento(attempt, eventType, severity, null);
     }
 
     public String toJson(LoginAttempt attempt, String eventType, String severity) throws JsonProcessingException {
