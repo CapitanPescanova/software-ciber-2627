@@ -36,7 +36,6 @@ class EventoMapperTest {
 
         EventoContrato evento = mapper.mapearAEvento(attempt, eventType, severity);
 
-        // 8 campos raiz
         assertEquals("HP-42", evento.eventId());
         assertEquals("2026-10-12T15:00:00Z", evento.timestamp());
         assertEquals("honeypot", evento.source());
@@ -45,7 +44,6 @@ class EventoMapperTest {
         assertEquals("Intento de acceso en el login falso", evento.title());
         assertEquals("Intento desde 192.168.1.100 con el usuario admin", evento.description());
 
-        // details
         assertNotNull(evento.details());
         assertEquals("192.168.1.100", evento.details().get("source_ip"));
         assertEquals("honeypot-web", evento.details().get("service"));
