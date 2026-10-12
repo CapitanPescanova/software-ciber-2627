@@ -1,31 +1,39 @@
-# Contrato de API
+# Contrato de Eventos - Integración Honeypot con SIEM
 
-# Contrato de Eventos del Honeypot
+Este documento define la estructura estandarizada de eventos generados por el Honeypot (Grupo 3) conforme al esquema común acordado con el SIEM (Grupo 5).
 
-> **Versión provisional, pendiente del visto bueno del grupo 5**
+## Especificación del Formato Común
 
-Este documento define la estructura del evento de seguridad que el módulo honeypot (`03-honeypot`) envía al SIEM tras registrar un intento de ataque.
+El cuerpo del evento contiene **exactamente 8 campos obligatorios en la raíz**:
 
-## Estructura de campos
+| Campo | Tipo | Requerido | Descripción | Ejemplo |
+| :--- | :--- | :---: | :--- | :--- |
+| `event_id` | String | Sí | Identificador idempotente prefijado con el módulo y el ID del registro. | `"HP-101"` |
+| `timestamp` | String | Sí | Fecha y hora en formato UTC ISO-8601 (`YYYY-MM-DDTHH:mm:ssZ`). | `"2026-10-12T14:30:00Z"` |
+| `source` | String | Sí | Identificador del sistema emisor. Fijo para este módulo. | `"honeypot"` |
+| `event_type` | String | Sí | Tipología de la alerta (`fuerza_bruta`, `credenciales_por_defecto`, `escaneo`). | `"fuerza_bruta"` |
+| `severity` | String | Sí | Severidad normalizada: `low`, `medium`, `high`, `critical`. | `"medium"` |
+| `title` | String | Sí | Resumen conciso del evento. | `"Intento de acceso en el login falso"` |
+| `description`| String | Sí | Descripción contextual del atacante y credenciales. | `"Intento desde 192.168.1.45 con el usuario admin"` |
+| `details` | Object | Sí | Mapa de metadatos detallados específicos del honeypot. | Ver tabla inferior |
 
-| Campo | Tipo | Obligatorio | Descripción |
-| :--- | :--- | :---: | :--- |
-| `event_id` | String (UUIDv4) | Sí | Identificador único del evento para trazabilidad en el SIEM. |
-| `timestamp` | String (ISO 8601 UTC) | Sí | Fecha y hora exacta en la que se registró el intento. |
-| `source` | String | Sí | Identificador del honeypot origen (ej. `honeypot-login-03`). |
-| `event_type` | String (Enum) | Sí | Tipo de ataque detectado (`fuerza_bruta`, `credenciales_por_defecto`, `escaneo`). |
-| `severity` | String (Enum) | Sí | Nivel de gravedad del evento (`baja`, `media`, `alta`, `critica`). |
-| `source_ip` | String (IPv4) | Sí | Dirección IP origen desde la que se realiza la petición. |
-| `service` | String | Sí | Servicio o protocolo objetivo atacado (ej. `http-login`). |
-| `details` | Object | Sí | Información detallada del intento (endpoint, credenciales probadas, etc.). |
+### Estructura del objeto `details`
 
-### Valores de `event_type`
-- `fuerza_bruta`: Múltiples intentos repetidos o combinaciones comunes de credenciales.
-- `credenciales_por_defecto`: Intentos con pares usuario/contraseña estándar de fábrica (admin/admin, root/toor).
-- `escaneo`: Pruebas de reconocimiento de rutas, cabeceras o peticiones de sondeo sin credenciales útiles.
+| Campo | Tipo | Descripción |
+| :--- | :--- | :--- |
+| `source_ip` | String | Dirección IP origen del intento de acceso. |
+| `service` | String | Servicio atacado (ej. `honeypot-web`). |
+| `username` | String | Nombre de usuario empleado (o `null` si no aplica). |
+| `credential` | String | Contraseña o credencial intentada (o `null` si no aplica). |
+| `command` | String | Comando ejecutado en caso de interactividad (o `null`). |
+| `ruta` | String | Endpoint o ruta web invocada (ej. `/login`). |
+| `navegador` | String | User-Agent de la cabecera HTTP. |
 
-## Ejemplos de eventos
-Los ejemplos validados de cada tipo de evento se encuentran en formato JSON en `contract/examples/`:
-- `fuerza_bruta.json`
-- `credenciales_por_defecto.json`
-- `escaneo.json`
+---
+
+## Respuestas HTTP esperadas (Mock / SIEM)
+
+* **`201 Created`**: Evento recibido y validado con éxito.
+* **`200 OK`**: Evento procesado correctamente (aceptado en envíos idempotentes/reintentos).
+* **`422 Unprocessable Entity`**: Faltan campos obligatorios en la raíz del evento.
+* **`400 Bad Request`**: Carga útil no válida o JSON mal formado.

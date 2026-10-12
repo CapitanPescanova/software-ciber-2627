@@ -1,14 +1,18 @@
 {
-  "event_id": "b7c2d109-1f42-4a19-87a2-623d028e56b2",
-  "timestamp": "2026-10-12T14:31:15Z",
-  "source": "honeypot-login-03",
-  "source_ip": "192.168.1.99",
-  "service": "http-login",
-  "severity": "alta",
+  "event_id": "HP-102",
+  "timestamp": "2026-10-12T14:32:00Z",
+  "source": "honeypot",
   "event_type": "credenciales_por_defecto",
+  "severity": "high",
+  "title": "Intento de acceso en el login falso",
+  "description": "Intento desde 192.168.1.80 con el usuario root",
   "details": {
-    "endpoint": "/login",
+    "source_ip": "192.168.1.80",
+    "service": "honeypot-web",
     "username": "root",
-    "password": "toor"
+    "credential": "toor",
+    "command": null,
+    "ruta": "/login",
+    "navegador": "curl/7.68.0"
   }
 }
