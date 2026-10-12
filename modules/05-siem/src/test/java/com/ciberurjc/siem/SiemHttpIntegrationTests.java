@@ -103,4 +103,35 @@ class SiemHttpIntegrationTests {
         assertEquals(404, missing.statusCode());
         assertEquals("ALERT_NOT_FOUND", mapper.readTree(missing.body()).get("error").get("code").asText());
     }
+
+    @Test
+    void rejectsWrongTypesWithoutCoercingStringFields() throws Exception {
+        Map<String, Object> valid = mapper.readValue(Files.readString(Path.of("contract/examples/grupo_3_honeypot.json")), Map.class);
+        for (String field : List.of("event_id", "timestamp", "source", "event_type", "severity", "title", "description")) {
+            for (Object value : java.util.Arrays.asList(42, 4.2, true, List.of("value"), Map.of("value", "text"), null)) {
+                var invalid = new LinkedHashMap<>(valid);
+                invalid.put(field, value);
+                var response = request("/events", mapper.writeValueAsString(invalid), "application/json");
+                assertEquals(400, response.statusCode(), field + ": " + value);
+                assertTrue(mapper.readTree(response.body()).has("error"));
+            }
+        }
+        for (Object value : java.util.Arrays.asList(42, 4.2, true, "text", List.of(), null)) {
+            var invalid = new LinkedHashMap<>(valid);
+            invalid.put("details", value);
+            assertEquals(400, request("/events", mapper.writeValueAsString(invalid), "application/json").statusCode(), "details: " + value);
+        }
+    }
+
+    @Test
+    void preservesEveryProducerFieldAndReturnsExactReceipt() throws Exception {
+        for (String filename : List.of("grupo_2_ids_ejemplo_propuesto.json", "grupo_3_honeypot.json", "grupo_4_scanner.json")) {
+            String input = Files.readString(Path.of("contract/examples", filename));
+            var model = mapper.readValue(input, com.ciberurjc.siem.models.Event.class);
+            assertEquals(mapper.readTree(input), mapper.readTree(mapper.writeValueAsString(model)), filename);
+            var response = request("/events", input, "application/json");
+            assertEquals(200, response.statusCode());
+            assertEquals(Map.of("status", "success", "message", "Event received successfully (mock)", "event_id", model.event_id()), mapper.readValue(response.body(), Map.class));
+        }
+    }
 }

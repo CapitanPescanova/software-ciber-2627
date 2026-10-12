@@ -362,7 +362,8 @@
           "event_id": {
             "type": "string",
             "minLength": 1,
-            "description": "Unique within source; stable on retries. UUID is not required."
+            "description": "Unique within source; stable on retries. UUID is not required.",
+            "pattern": "\\S"
           },
           "timestamp": {
             "type": "string",
@@ -381,7 +382,8 @@
           "event_type": {
             "type": "string",
             "minLength": 1,
-            "description": "Shared catalog pending; existing examples retained."
+            "description": "Shared catalog pending; existing examples retained.",
+            "pattern": "\\S"
           },
           "severity": {
             "type": "string",
@@ -394,11 +396,13 @@
           },
           "title": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "\\S"
           },
           "description": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "\\S"
           },
           "details": {
             "type": "object",

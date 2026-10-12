@@ -1,6 +1,6 @@
 # Estado de integración · Equipo 5 · Sprint 1
 
-Comprobado el 11/10/2026. Candidato técnico preparado para revisión; no representa aceptación del PO ni un acuerdo nuevo entre equipos.
+Actualizado el 12/10/2026. Candidato técnico preparado para revisión; no representa aceptación del PO ni un acuerdo nuevo entre equipos.
 
 ## Trabajo realizado
 
@@ -35,3 +35,11 @@ El validador local de contrato comprobó tres eventos, tres alertas completas, m
 - Confirmar objetivo, estimaciones y capacidad del sprint en Planning.
 
 Las historias siguen En revisión. No deben cerrarse únicamente por este documento ni por sus subtareas finalizadas.
+
+## Actualización del 12/10/2026
+
+Incorporada la entrega SEM-10 de Claudio, commit cb0d5dd, conservando el servidor, los GET y el manejador común de errores. Añadida JsonContractConfiguration para rechazar conversiones automáticas de números y booleanos a String. Se conservan los tipos libres dentro de details.
+
+Añadidas dos pruebas HTTP: rechazo de tipos incorrectos en los siete campos de texto y details; conservación de los tres eventos y acuses exactos. `./mvnw -o test` termina con siete pruebas, cero fallos y cero errores. El esquema y OpenAPI documentan también el rechazo de textos formados únicamente por espacios. El validador del contrato vuelve a pasar para los tres eventos y las tres alertas.
+
+Las pruebas de esta actualización usan el servidor local integrado. No sustituyen la ejecución de los servicios externos ni la revisión y aceptación del equipo. No se ha repetido la prueba Docker histórica de 15 comprobaciones en esta actualización.

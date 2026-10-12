@@ -18,7 +18,10 @@ public class EventController {
     @PostMapping(consumes = "application/json", produces = "application/json")
     public Map<String, String> receiveEvent(@Valid @RequestBody Event event) {
         eventService.processIncomingEvent(event);
-        return Map.of("status", "success", "message", "Event received successfully (mock)",
-                "event_id", event.event_id());
+        return Map.of(
+            "status", "success",
+            "message", "Event received successfully (mock)",
+            "event_id", event.event_id()
+        );
     }
 }
