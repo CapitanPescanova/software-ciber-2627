@@ -124,11 +124,11 @@ public class LoginAttempt {
 		this.userAgent = userAgent;
 	}
 
-	public boolean getEnviado() {
+	public boolean isEnviado() {
 		return enviado;
 	}
 
-	public void setEnviado(Boolean enviado) {
+	public void setEnviado(boolean enviado) {
 		this.enviado = enviado;
 	}
 }
