@@ -1,6 +1,5 @@
 package com.honeypot.honeypot.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.honeypot.honeypot.model.EventoContrato;
 import com.honeypot.honeypot.model.LoginAttempt;
 import org.junit.jupiter.api.DisplayName;
@@ -12,16 +11,15 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class EventoMapperTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final EventoMapper mapper = new EventoMapper(objectMapper);
+    private final EventoMapper mapper = new EventoMapper();
 
     @Test
     @DisplayName("Convierte LoginAttempt al contrato comun SIEM con los 8 campos raiz")
     void shouldMapToSiemCommonContract() {
-        Instant ahora = Instant.parse("2026-10-12T15:00:00Z");
+        Instant ahora = Instant.parse("2026-10-12T15:00:00.123456Z");
 
         LoginAttempt attempt = new LoginAttempt();
-        attempt.setId(42L);
+        // Sin setId(): attempt.getId() sera null y mapper generara "HP-0"
         attempt.setOccurredAt(ahora);
         attempt.setSourceIp("192.168.1.100");
         attempt.setServiceAttacked("honeypot-web");
@@ -36,7 +34,7 @@ class EventoMapperTest {
 
         EventoContrato evento = mapper.mapearAEvento(attempt, eventType, severity);
 
-        assertEquals("HP-42", evento.eventId());
+        assertEquals("HP-0", evento.eventId());
         assertEquals("2026-10-12T15:00:00Z", evento.timestamp());
         assertEquals("honeypot", evento.source());
         assertEquals("fuerza_bruta", evento.eventType());
