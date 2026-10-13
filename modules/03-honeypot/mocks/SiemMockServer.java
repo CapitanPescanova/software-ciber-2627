@@ -14,22 +14,22 @@ public class SiemMockServer {
 
     private static final int PORT = 8081;
 
-        // Campos obligatorios de nuestra propuesta de contrato (pendiente de validar con el grupo 5)    
-        private static final List<String> CAMPOS_OBLIGATORIOS = Arrays.asList(
+    // 8 campos obligatorios en la raíz acordados con el Grupo 5
+    private static final List<String> CAMPOS_OBLIGATORIOS_RAIZ = Arrays.asList(
             "\"event_id\"",
             "\"timestamp\"",
             "\"source\"",
             "\"event_type\"",
             "\"severity\"",
-            "\"source_ip\"",
-            "\"service\"",
+            "\"title\"",
+            "\"description\"",
             "\"details\""
     );
 
     public static void main(String[] args) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);
         server.createContext("/events", new EventsHandler());
-        server.setExecutor(null); // Ejecutor por defecto
+        server.setExecutor(null);
 
         System.out.println("=== SIEM Mock Server arrancado en http://localhost:" + PORT + "/events ===");
         server.start();
@@ -43,34 +43,31 @@ public class SiemMockServer {
                 return;
             }
 
-            // 1. Leer el cuerpo del JSON recibido
             InputStream is = exchange.getRequestBody();
             String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
 
             System.out.println("\n[SIEM Mock] Evento recibido:");
             System.out.println(body);
 
-            // 2. Validar que contenga todos los campos obligatorios del contrato
             boolean esValido = true;
             StringBuilder camposFaltantes = new StringBuilder();
 
-            for (String campo : CAMPOS_OBLIGATORIOS) {
+            for (String campo : CAMPOS_OBLIGATORIOS_RAIZ) {
                 if (!body.contains(campo)) {
                     esValido = false;
                     camposFaltantes.append(campo).append(" ");
                 }
             }
 
-            // 3. Responder 200 si es valido o 400 si falta algun campo
             if (esValido && !body.trim().isEmpty()) {
-                System.out.println("-> Validacion OK: Retornando 200 OK");
-                String respuesta = "{\"status\": \"received\"}";
-                enviarRespuesta(exchange, 200, respuesta);
+                System.out.println("-> Validacion OK: Retornando 201 Created");
+                String respuesta = "{\"status\": \"created\", \"message\": \"Evento registrado correctamente\"}";
+                enviarRespuesta(exchange, 201, respuesta);
             } else {
-                System.out.println("-> Error de validacion. Faltan: " + camposFaltantes + "-> Retornando 400 Bad Request");
-                String respuesta = "{\"status\": \"error\", \"message\": \"Faltan campos obligatorios: " 
+                System.out.println("-> Error de validacion. Faltan en raiz: " + camposFaltantes + "-> Retornando 422");
+                String respuesta = "{\"status\": \"error\", \"message\": \"Faltan campos obligatorios en la raiz: " 
                         + camposFaltantes.toString().replace("\"", "") + "\"}";
-                enviarRespuesta(exchange, 400, respuesta);
+                enviarRespuesta(exchange, 422, respuesta);
             }
         }
 
