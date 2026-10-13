@@ -29,6 +29,8 @@ services:
     build: ./modules/03-honeypot
     ports:
       - "8003:80"
+    volumes:
+      - honeypot-data:/http/data
     networks:
       - ciberurjc
     healthcheck:
@@ -37,6 +39,8 @@ services:
       timeout: 3s
       retries: 5
       start_period: 5s
+
+    restart: unless-stopped
 
   escaner:
     build: ./modules/04-escaner
@@ -106,3 +110,6 @@ services:
 networks:
   ciberurjc:
     driver: bridge
+
+volumes:
+  honeypot-data:
