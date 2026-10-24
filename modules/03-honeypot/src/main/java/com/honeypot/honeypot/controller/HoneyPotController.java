@@ -4,6 +4,7 @@ import com.honeypot.honeypot.model.EventoContrato;
 import com.honeypot.honeypot.model.LoginAttempt;
 import com.honeypot.honeypot.repository.LoginAttemptRepository;
 import com.honeypot.honeypot.service.EventoMapper;
+import com.honeypot.honeypot.service.IpRateLimiterService;
 import com.honeypot.honeypot.service.SiemSenderService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
