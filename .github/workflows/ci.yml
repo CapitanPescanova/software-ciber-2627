@@ -54,3 +54,22 @@ jobs:
             exit 0
           fi
           check-jsonschema --schemafile shared/event-schema.json "${files[@]}"
+
+  honeypot-tests:
+    name: Honeypot Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - name: Run honeypot tests
+        working-directory: modules/03-honeypot
+        run: ./mvnw -B test

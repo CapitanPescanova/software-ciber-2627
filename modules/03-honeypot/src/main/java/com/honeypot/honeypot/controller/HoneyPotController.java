@@ -4,6 +4,7 @@ import com.honeypot.honeypot.model.EventoContrato;
 import com.honeypot.honeypot.model.LoginAttempt;
 import com.honeypot.honeypot.repository.LoginAttemptRepository;
 import com.honeypot.honeypot.service.EventoMapper;
+import com.honeypot.honeypot.service.IpRateLimiterService;
 import com.honeypot.honeypot.service.SiemSenderService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
@@ -27,15 +28,18 @@ public class HoneyPotController {
     private final EventoMapper eventoMapper;
     private final SiemSenderService siemSenderService;
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
+    private final IpRateLimiterService ipRateLimiterService;
 
     public HoneyPotController(
             LoginAttemptRepository loginAttemptRepository,
             EventoMapper eventoMapper,
-            SiemSenderService siemSenderService
+            SiemSenderService siemSenderService,
+            IpRateLimiterService ipRateLimiterService
     ) {
         this.loginAttemptRepository = loginAttemptRepository;
         this.eventoMapper = eventoMapper;
         this.siemSenderService = siemSenderService;
+        this.ipRateLimiterService = ipRateLimiterService;
     }
 
     @GetMapping({"/", "/login"})
@@ -47,6 +51,10 @@ public class HoneyPotController {
     public String submitLogin(@RequestParam MultiValueMap<String, String> parameters,
             HttpServletRequest request, Model model) {
         String password = firstValue(parameters, "password", "pass", "pwd");
+
+        String ip = request.getRemoteAddr();
+        boolean allowed = ipRateLimiterService.allowRequest(ip);
+
         LoginAttempt attempt = new LoginAttempt();
         attempt.setSourceIp(request.getRemoteAddr());
         attempt.setOccurredAt(Instant.now());
@@ -88,6 +96,13 @@ public class HoneyPotController {
                 limpiar(attempt.getUsername()), loginAttemptRepository.count());
 
         model.addAttribute("message", "Credenciales incorrectas.");
+
+        // aquí se decide que se quiere hacer con las ip que lanzan muchas peticiones seguidas
+        if (!allowed) {
+            // response.setStatus(HttpServletResponse.SC_TOO_MANY_REQUESTS);
+            log.info("TOO MANY REQUEST: ip={} ", attempt.getSourceIp());
+        }
+
         return "login";
     }
 
