@@ -29,3 +29,14 @@ La página `/attempts` (ver y borrar intentos) solo existe arrancando con
 ## Estado
 - Hecho: login falso, registro de intentos y base de datos (`HP-5`, `HP-17`).
 - En curso: `Dockerfile` propio (`HP-51`), volumen para la base de datos (`HP-50`), contrato de eventos (`HP-19`) y envío al SIEM (`HP-20`).
+
+## Configuración de la detección de fuerza bruta
+
+Se configura en `src/main/resources/application.properties`:
+
+| Propiedad | Valor por defecto | Qué hace |
+| --- | --- | --- |
+| `honeypot.fuerza-bruta.max-intentos` | 5 | Número de intentos de una misma IP a partir del cual se considera fuerza bruta |
+| `honeypot.fuerza-bruta.ventana-segundos` | 60 | Ventana de tiempo, en segundos, en la que se cuentan esos intentos |
+
+Los intentos se cuentan por IP sumando todos los servicios señuelo. Se etiqueta como `fuerza_bruta` a partir del intento que supera el máximo.
