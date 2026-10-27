@@ -27,6 +27,8 @@ services:
 
   honeypot:
     build: ./modules/03-honeypot
+    #cpus: "0.5"
+    #mem_limit: 512m
     ports:
       - "8003:80"
     volumes:
