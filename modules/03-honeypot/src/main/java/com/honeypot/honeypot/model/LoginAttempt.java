@@ -45,6 +45,9 @@ public class LoginAttempt {
 	@Column(name = "enviado",nullable = false, columnDefinition = "boolean default false")
 	private boolean enviado = false;
 
+	@Column(name = "tipo_ataque", length = 64)
+	private String tipoAtaque;
+
 	public LoginAttempt() {
 	}
 
@@ -130,5 +133,13 @@ public class LoginAttempt {
 
 	public void setEnviado(boolean enviado) {
 		this.enviado = enviado;
+	}
+
+	public String getTipoAtaque() {
+		return tipoAtaque;
+	}
+
+	public void setTipoAtaque(String tipoAtaque) {
+		this.tipoAtaque = tipoAtaque;
 	}
 }

@@ -2,14 +2,15 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, equipo-03-honeypot]
   push:
-    branches: [main]
+    branches: [main, equipo-03-honeypot]
 
 jobs:
   build-and-health:
     name: build-and-health
     runs-on: ubuntu-latest
+    if: github.base_ref == 'main' || github.ref_name == 'main'
     steps:
       - uses: actions/checkout@v4
 
@@ -72,4 +73,6 @@ jobs:
 
       - name: Run honeypot tests
         working-directory: modules/03-honeypot
-        run: ./mvnw -B test
+        run: |
+          chmod +x mvnw 
+          ./mvnw -B test
