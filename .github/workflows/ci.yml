@@ -73,4 +73,6 @@ jobs:
 
       - name: Run honeypot tests
         working-directory: modules/03-honeypot
-        run: ./mvnw -B test
+        run: |
+          chmod +x mvnw 
+          ./mvnw -B test
