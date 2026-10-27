@@ -25,8 +25,14 @@ public class EventoMapper {
 
         String ip = (attempt.getSourceIp() != null) ? attempt.getSourceIp() : "";
         String user = (attempt.getUsername() != null) ? attempt.getUsername() : "";
-        String title = "Intento de acceso en el login falso";
+        boolean ftpEvent = "ftp".equals(attempt.getServiceAttacked());
+        String title = ftpEvent
+                ? "Actividad detectada en el honeypot FTP"
+                : "Intento de acceso en el login falso";
         String description = "Intento desde " + ip + " con el usuario " + user;
+        if (ftpEvent) {
+            description = "Comando FTP detectado desde " + ip + ": " + attempt.getAttemptedCommand();
+        }
 
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("source_ip", attempt.getSourceIp());

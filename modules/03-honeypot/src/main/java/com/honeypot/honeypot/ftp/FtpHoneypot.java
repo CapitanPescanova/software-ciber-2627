@@ -13,16 +13,26 @@ import org.apache.ftpserver.ftplet.Ftplet;
 import org.apache.ftpserver.ftplet.FtpletResult;
 import org.apache.ftpserver.ftplet.DefaultFtpReply;
 import org.apache.ftpserver.listener.ListenerFactory;
+import com.honeypot.honeypot.service.FtpEventService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 @Component
 public class FtpHoneypot {
+    private static final Logger log = LoggerFactory.getLogger(FtpHoneypot.class);
 
     private FtpServer server;
+    private final FtpEventService ftpEventService;
+
+    public FtpHoneypot(FtpEventService ftpEventService) {
+        this.ftpEventService = ftpEventService;
+    }
 
     @PostConstruct
     public void start() {
@@ -48,14 +58,20 @@ public class FtpHoneypot {
                         FtpRequest request)
                         throws FtpException, IOException {
 
-                    String command = request.getCommand().toUpperCase();
+                    String command = request.getCommand().toUpperCase(Locale.ROOT);
+
+                    try {
+                        String sourceIp = session.getClientAddress().getAddress().getHostAddress();
+                        ftpEventService.registrarComando(
+                                sourceIp,
+                                command,
+                                request.getArgument()
+                        );
+                    } catch (RuntimeException e) {
+                        log.error("No se pudo registrar el comando FTP {}", command, e);
+                    }
 
                     if ("USER".equals(command)) {
-
-                        System.out.println(
-                                "FTP USER recibido: " + request.getArgument()
-                        );
-
                         session.write(
                                 new DefaultFtpReply(
                                         331,
@@ -67,11 +83,6 @@ public class FtpHoneypot {
                     }
 
                     if ("PASS".equals(command)) {
-
-                        System.out.println(
-                                "FTP PASS recibido"
-                        );
-
                         session.write(
                                 new DefaultFtpReply(
                                         530,
@@ -91,17 +102,10 @@ public class FtpHoneypot {
             server = serverFactory.createServer();
             server.start();
 
-            System.out.println(
-                    "FTP HONEYPOT iniciado en puerto 2121"
-            );
+            log.info("FTP HONEYPOT iniciado en puerto 2121");
 
         } catch (Exception e) {
-
-            System.err.println(
-                    "Error iniciando FTP Honeypot"
-            );
-
-            e.printStackTrace();
+            log.error("Error iniciando FTP Honeypot", e);
         }
     }
 
@@ -110,10 +114,7 @@ public class FtpHoneypot {
 
         if (server != null) {
             server.stop();
-
-            System.out.println(
-                    "FTP HONEYPOT detenido"
-            );
+            log.info("FTP HONEYPOT detenido");
         }
     }
 }
