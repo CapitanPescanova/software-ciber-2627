@@ -16,8 +16,8 @@ public class FtpEventService {
     private static final Logger log = LoggerFactory.getLogger(FtpEventService.class);
     private static final String REDACTED = "[REDACTED]";
 
-    // TODO: cambiar por el valor acordado con Nacho
-    private static final String EVENT_TYPE_NORMAL = "PENDIENTE_CONFIRMAR";
+    
+    private static final String EVENT_TYPE_NORMAL = "intento_login";
 
     private final LoginAttemptRepository loginAttemptRepository;
     private final EventoMapper eventoMapper;
@@ -64,10 +64,7 @@ public class FtpEventService {
 
         attempt.setAttemptedCommand(truncate(attemptedCommand, 2000));
 
-        /*
-         * Solo los PASS se clasifican como intentos de login.
-         * La clasificación se hace antes de guardar el intento.
-         */
+       
         String tipoAtaque = null;
 
         if (passwordCommand) {
