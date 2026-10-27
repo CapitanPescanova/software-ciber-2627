@@ -3,6 +3,7 @@ package com.honeypot.honeypot.controller;
 import com.honeypot.honeypot.model.EventoContrato;
 import com.honeypot.honeypot.model.LoginAttempt;
 import com.honeypot.honeypot.repository.LoginAttemptRepository;
+import com.honeypot.honeypot.service.ClasificadorAtaquesService;
 import com.honeypot.honeypot.service.EventoMapper;
 import com.honeypot.honeypot.service.IpRateLimiterService;
 import com.honeypot.honeypot.service.SiemSenderService;
@@ -29,17 +30,20 @@ public class HoneyPotController {
     private final SiemSenderService siemSenderService;
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
     private final IpRateLimiterService ipRateLimiterService;
+    private final ClasificadorAtaquesService clasificadorAtaquesService;
 
     public HoneyPotController(
             LoginAttemptRepository loginAttemptRepository,
             EventoMapper eventoMapper,
             SiemSenderService siemSenderService,
-            IpRateLimiterService ipRateLimiterService
+            IpRateLimiterService ipRateLimiterService,
+            ClasificadorAtaquesService clasificadorAtaquesService
     ) {
         this.loginAttemptRepository = loginAttemptRepository;
         this.eventoMapper = eventoMapper;
         this.siemSenderService = siemSenderService;
         this.ipRateLimiterService = ipRateLimiterService;
+        this.clasificadorAtaquesService = clasificadorAtaquesService;
     }
 
     @GetMapping({"/", "/login"})
@@ -65,7 +69,11 @@ public class HoneyPotController {
         attempt.setAttemptedCommand(truncate(firstValue(parameters, "command", "cmd"), 2000));
         attempt.setRequestPath(truncate(request.getRequestURI(), 512));
         attempt.setUserAgent(truncate(request.getHeader("User-Agent"), 512));
-        
+
+        // Clasificar el intento antes de guardarlo (HP-76)
+        attempt.setTipoAtaque(clasificadorAtaquesService.clasificar(
+                attempt.getSourceIp(), attempt.getOccurredAt()));
+
         // 1. Guardar primero para que la BD asigne el ID
         loginAttemptRepository.save(attempt);
 
