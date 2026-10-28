@@ -54,7 +54,7 @@ public class HoneyPotController {
 
     @PostMapping("/login")
     public String submitLogin(@RequestParam MultiValueMap<String, String> parameters,
-            HttpServletRequest request, Model model) {
+            HttpServletRequest request, HttpServletResponse response,  Model model) {
         String password = firstValue(parameters, "password", "pass", "pwd");
 
         String ip = request.getRemoteAddr();
@@ -62,7 +62,7 @@ public class HoneyPotController {
         boolean allowed = ipRateLimiterService.allowRequest(ip);
 
         if (!allowed) {
-            HttpServletResponse response = null;
+            response.setStatus(429);
             model.addAttribute("message", "Demasiadas peticiones. Inténtalo de nuevo más tarde.");
             // No guardar en BD, no clasificar y no enviar al SIEM.
             // No registrar cada rechazo para evitar inundar los logs.
