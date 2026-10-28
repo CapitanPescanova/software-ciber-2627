@@ -80,8 +80,8 @@ public class HoneyPotController {
         // 2. Enviar en segundo plano para no demorar la respuesta al atacante
         CompletableFuture.runAsync(() -> {
             try {
-                // Evento con event_type "fuerza_bruta" del ejemplo acordado
-                EventoContrato evento = eventoMapper.mapearAEvento(attempt, "fuerza_bruta", "medium");
+                // event_type: la etiqueta guardada o "intento_login" si no tiene (HP-77)
+                EventoContrato evento = eventoMapper.mapearAEvento(attempt, "medium");
                 String json = jsonMapper.writeValueAsString(evento);
 
                 int statusCode = siemSenderService.enviarEvento(json);
