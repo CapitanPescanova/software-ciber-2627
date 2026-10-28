@@ -32,20 +32,36 @@ class ClasificadorAtaquesServiceTest {
 
     @Test
     void elQuintoIntentoEnUnMinutoNoEsFuerzaBruta() {
-        when(repositorio.countBySourceIpAndOccurredAtAfter(IP, ahora.minusSeconds(60))).thenReturn(4L);
+        when(repositorio.countBySourceIpAndOccurredAtAfterAndCredentialAttemptIsNotNull(IP, ahora.minusSeconds(60)))
+                .thenReturn(4L);
         assertNull(clasificador.clasificar(IP, ahora));
     }
 
     @Test
     void elSextoIntentoEnUnMinutoEsFuerzaBruta() {
-        when(repositorio.countBySourceIpAndOccurredAtAfter(IP, ahora.minusSeconds(60))).thenReturn(5L);
-        assertEquals("fuerza_bruta", clasificador.clasificar(IP, ahora));
+        when(repositorio.countBySourceIpAndOccurredAtAfterAndCredentialAttemptIsNotNull(IP, ahora.minusSeconds(60)))
+                .thenReturn(5L);
+        assertEquals(ClasificadorAtaquesService.FUERZA_BRUTA, clasificador.clasificar(IP, ahora));
     }
 
     @Test
     void usaLaVentanaDeLaConfiguracion() {
         when(config.getVentanaSegundos()).thenReturn(30);
         clasificador.clasificar(IP, ahora);
-        verify(repositorio).countBySourceIpAndOccurredAtAfter(IP, ahora.minusSeconds(30));
+        verify(repositorio).countBySourceIpAndOccurredAtAfterAndCredentialAttemptIsNotNull(IP, ahora.minusSeconds(30));
+    }
+
+    // HP-78: con el umbral cambiado a 3, el cuarto intento ya es fuerza bruta y el tercero no
+    @Test
+    void respetaUnUmbralDistintoEnLaConfiguracion() {
+        when(config.getMaxIntentos()).thenReturn(3);
+
+        when(repositorio.countBySourceIpAndOccurredAtAfterAndCredentialAttemptIsNotNull(IP, ahora.minusSeconds(60)))
+                .thenReturn(2L);
+        assertNull(clasificador.clasificar(IP, ahora));
+
+        when(repositorio.countBySourceIpAndOccurredAtAfterAndCredentialAttemptIsNotNull(IP, ahora.minusSeconds(60)))
+                .thenReturn(3L);
+        assertEquals(ClasificadorAtaquesService.FUERZA_BRUTA, clasificador.clasificar(IP, ahora));
     }
 }

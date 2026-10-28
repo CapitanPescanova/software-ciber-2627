@@ -39,4 +39,6 @@ Se configura en `src/main/resources/application.properties`:
 | `honeypot.fuerza-bruta.max-intentos` | 5 | Número de intentos de una misma IP a partir del cual se considera fuerza bruta |
 | `honeypot.fuerza-bruta.ventana-segundos` | 60 | Ventana de tiempo, en segundos, en la que se cuentan esos intentos |
 
-Los intentos se cuentan por IP sumando todos los servicios señuelo. Se etiqueta como `fuerza_bruta` a partir del intento que supera el máximo.
+Los intentos se cuentan por IP sumando todos los servicios señuelo. Solo cuentan los intentos con contraseña: en el FTP, los comandos `USER`, `LIST`, etc. se registran pero no suman. Se etiqueta como `fuerza_bruta` a partir del intento que supera el máximo; los anteriores no se cambian.
+
+Al SIEM se envía como `event_type` la etiqueta guardada en el intento. Si no tiene etiqueta, se envía `intento_login` (acuerdo con el grupo 5, ver `contract/`).

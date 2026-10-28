@@ -15,6 +15,23 @@ public class EventoMapper {
     private static final String SOURCE = "honeypot";
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_INSTANT;
 
+    /**
+     * Crea el evento usando como event_type la etiqueta guardada en el intento (HP-77).
+     */
+    public EventoContrato mapearAEvento(LoginAttempt attempt, String severity) {
+        return mapearAEvento(attempt, tipoDeEvento(attempt), severity);
+    }
+
+    /**
+     * La etiqueta guardada (fuerza_bruta...) o "intento_login" si el intento no tiene etiqueta.
+     */
+    public static String tipoDeEvento(LoginAttempt attempt) {
+        String etiqueta = attempt.getTipoAtaque();
+        return (etiqueta == null || etiqueta.isBlank())
+                ? ClasificadorAtaquesService.INTENTO_LOGIN
+                : etiqueta;
+    }
+
     public EventoContrato mapearAEvento(LoginAttempt attempt, String eventType, String severity) {
         String eventId = (attempt.getId() != null) ? "HP-" + attempt.getId() : "HP-0";
 
