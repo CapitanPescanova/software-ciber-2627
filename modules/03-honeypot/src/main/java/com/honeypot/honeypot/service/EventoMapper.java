@@ -15,6 +15,23 @@ public class EventoMapper {
     private static final String SOURCE = "honeypot";
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_INSTANT;
 
+    /**
+     * Crea el evento usando como event_type la etiqueta guardada en el intento (HP-77).
+     */
+    public EventoContrato mapearAEvento(LoginAttempt attempt, String severity) {
+        return mapearAEvento(attempt, tipoDeEvento(attempt), severity);
+    }
+
+    /**
+     * La etiqueta guardada (fuerza_bruta...) o "intento_login" si el intento no tiene etiqueta.
+     */
+    public static String tipoDeEvento(LoginAttempt attempt) {
+        String etiqueta = attempt.getTipoAtaque();
+        return (etiqueta == null || etiqueta.isBlank())
+                ? ClasificadorAtaquesService.INTENTO_LOGIN
+                : etiqueta;
+    }
+
     public EventoContrato mapearAEvento(LoginAttempt attempt, String eventType, String severity) {
         String eventId = (attempt.getId() != null) ? "HP-" + attempt.getId() : "HP-0";
 
@@ -25,8 +42,14 @@ public class EventoMapper {
 
         String ip = (attempt.getSourceIp() != null) ? attempt.getSourceIp() : "";
         String user = (attempt.getUsername() != null) ? attempt.getUsername() : "";
-        String title = "Intento de acceso en el login falso";
+        boolean ftpEvent = "ftp".equals(attempt.getServiceAttacked());
+        String title = ftpEvent
+                ? "Actividad detectada en el honeypot FTP"
+                : "Intento de acceso en el login falso";
         String description = "Intento desde " + ip + " con el usuario " + user;
+        if (ftpEvent) {
+            description = "Comando FTP detectado desde " + ip + ": " + attempt.getAttemptedCommand();
+        }
 
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("source_ip", attempt.getSourceIp());
