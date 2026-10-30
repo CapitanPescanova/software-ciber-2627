@@ -31,6 +31,9 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+    cpus: "0.5"
+    mem_limit: 512m
+    mem_reservation: 256m
     ports:
       - "8003:80"
     volumes:
