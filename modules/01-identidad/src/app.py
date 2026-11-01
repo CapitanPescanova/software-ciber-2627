@@ -242,29 +242,44 @@ def _format_raw_line(log):
     return f"{prefix} {_HOSTNAME} identidad[{_PID}]: {' '.join(parts)}"
 
 
-def _enviar_al_ids(log):
-    """Envía el evento al IDS en segundo plano. Fallo silencioso."""
-    log_id   = log.log_id
-    raw_line = _format_raw_line(log)
-    audit_id = log.id
+def enviar_lote_al_ids():
+    """Consulta los registros pendientes en orden cronológico y los envía en lote al IDS (AAA-84)."""
+    pendientes = (
+        AuditLog.query
+        .filter_by(enviado=False)
+        .order_by(AuditLog.timestamp.asc(), AuditLog.id.asc())
+        .all()
+    )
+    if not pendientes:
+        return 0
 
+    payload = {
+        "source": "01-identidad",
+        "logs": [
+            {"id": log.log_id, "raw_line": _format_raw_line(log)}
+            for log in pendientes
+        ],
+    }
+    try:
+        resp = http_client.post(IDS_URL, json=payload, timeout=2)
+        if resp.status_code in (200, 202):
+            for log in pendientes:
+                log.enviado = True
+            db.session.commit()
+            return len(pendientes)
+    except Exception:
+        db.session.rollback()
+    return 0
+
+
+def _enviar_al_ids(_log=None):
+    """Dispara el envío del lote pendiente al IDS en segundo plano sin bloquear el endpoint."""
     def _send():
-        try:
-            payload = {
-                "source": "01-identidad",
-                "logs": [{"id": log_id, "raw_line": raw_line}],
-            }
-            resp = http_client.post(IDS_URL, json=payload, timeout=2)
-            if resp.status_code in (200, 202):
-                with app.app_context():
-                    entry = db.session.get(AuditLog, audit_id)
-                    if entry:
-                        entry.enviado = True
-                        db.session.commit()
-        except Exception:
-            pass
+        with app.app_context():
+            enviar_lote_al_ids()
 
     threading.Thread(target=_send, daemon=True).start()
+
 
 
 def registrar_evento(event_type, result, username=None, role=None, clave=None):
