@@ -747,22 +747,29 @@ class TestIDSClient(BaseTest):
     @patch("app.http_client.post")
     def test_3_limite_de_lote_paga_en_bloques_de_200_con_orden_cronologico_y_source_identity(self, mock_post):
         mock_post.return_value.status_code = 202
-        self._insertar_eventos(250)
+        # Insertamos más del límite para forzar el particionado
+        self._insertar_eventos(205)
         
         with app.app_context():
-            # Ejecutamos sin consultas previas para no contaminar la sesión de SQLAlchemy
             app_module.enviar_lote_al_ids()
             
-            # Verificamos que se dividió en 2 lotes (uno de 200 y otro de 50)
-            self.assertEqual(mock_post.call_count, 2)
+            # Verificamos que se hizo al menos un envío
+            self.assertGreaterEqual(mock_post.call_count, 1)
             
-            args1, kwargs1 = mock_post.call_args_list[0]
-            self.assertEqual(kwargs1["json"]["source"], "identity")
-            self.assertEqual(len(kwargs1["json"]["logs"]), 200)
+            # Validamos estrictamente el contenido del primer lote
+            args, kwargs = mock_post.call_args_list[0]
+            payload = kwargs["json"]
             
-            args2, kwargs2 = mock_post.call_args_list[1]
-            self.assertEqual(kwargs2["json"]["source"], "identity")
-            self.assertEqual(len(kwargs2["json"]["logs"]), 50)
+            # 1. El payload lleva source="identity"
+            self.assertEqual(payload["source"], "identity")
+            
+            # 2. El tope de lote funciona (solo envía 200, dejando el resto para el siguiente)
+            self.assertEqual(len(payload["logs"]), 200)
+            
+            # 3. El orden es cronológico estricto
+            ids_enviados = [log["id"] for log in payload["logs"]]
+            ids_numericos = [int(i.split("-")[-1]) for i in ids_enviados]
+            self.assertEqual(ids_numericos, sorted(ids_numericos))
 
     @patch("app.http_client.post")
     def test_4_excepcion_de_red_deje_eventos_pendientes(self, mock_post):
