@@ -42,3 +42,13 @@ Se configura en `src/main/resources/application.properties`:
 Los intentos se cuentan por IP sumando todos los servicios señuelo. Solo cuentan los intentos con contraseña: en el FTP, los comandos `USER`, `LIST`, etc. se registran pero no suman. Se etiqueta como `fuerza_bruta` a partir del intento que supera el máximo; los anteriores no se cambian.
 
 Al SIEM se envía como `event_type` la etiqueta guardada en el intento. Si no tiene etiqueta, se envía `intento_login` (acuerdo con el grupo 5, ver `contract/`).
+
+## Configuración de las credenciales por defecto
+
+También en `application.properties`:
+
+| Propiedad | Valor | Qué hace |
+| --- | --- | --- |
+| `honeypot.credenciales-por-defecto` | `admin:admin,root:root,...` | Lista de credenciales típicas, en formato `usuario:contraseña` separadas por comas |
+
+Para añadir una credencial basta con ponerla en la lista, sin tocar el código. Un intento que usa una de ellas se etiqueta como `credenciales_por_defecto` y se envía al SIEM con severidad `high`. Si además es fuerza bruta, gana `fuerza_bruta` (acuerdo con el grupo 5). En el FTP todavía no se comprueba, porque el usuario y la contraseña llegan en comandos distintos.

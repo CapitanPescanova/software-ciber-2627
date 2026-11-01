@@ -70,9 +70,10 @@ public class HoneyPotController {
         attempt.setRequestPath(truncate(request.getRequestURI(), 512));
         attempt.setUserAgent(truncate(request.getHeader("User-Agent"), 512));
 
-        // Clasificar el intento antes de guardarlo (HP-76)
+        // Clasificar el intento antes de guardarlo (HP-76 y HP-83)
         attempt.setTipoAtaque(clasificadorAtaquesService.clasificar(
-                attempt.getSourceIp(), attempt.getOccurredAt()));
+                attempt.getSourceIp(), attempt.getOccurredAt(),
+                attempt.getUsername(), attempt.getCredentialAttempt()));
 
         // 1. Guardar primero para que la BD asigne el ID
         loginAttemptRepository.save(attempt);
@@ -81,7 +82,10 @@ public class HoneyPotController {
         CompletableFuture.runAsync(() -> {
             try {
                 // event_type: la etiqueta guardada o "intento_login" si no tiene (HP-77)
-                EventoContrato evento = eventoMapper.mapearAEvento(attempt, "medium");
+                // Severidad "high" para credenciales por defecto, como en contract/examples
+                String severidad = ClasificadorAtaquesService.CREDENCIALES_POR_DEFECTO
+                        .equals(attempt.getTipoAtaque()) ? "high" : "medium";
+                EventoContrato evento = eventoMapper.mapearAEvento(attempt, severidad);
                 String json = jsonMapper.writeValueAsString(evento);
 
                 int statusCode = siemSenderService.enviarEvento(json);

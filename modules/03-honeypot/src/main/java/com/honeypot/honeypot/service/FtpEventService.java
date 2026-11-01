@@ -68,9 +68,13 @@ public class FtpEventService {
         String tipoAtaque = null;
 
         if (passwordCommand) {
+            // En el FTP el usuario y la contraseña llegan en comandos distintos (USER y PASS),
+            // así que de momento no se comprueban las credenciales por defecto
             tipoAtaque = clasificadorAtaquesService.clasificar(
                     attempt.getSourceIp(),
-                    attempt.getOccurredAt()
+                    attempt.getOccurredAt(),
+                    null,
+                    null
             );
 
             attempt.setTipoAtaque(tipoAtaque);
