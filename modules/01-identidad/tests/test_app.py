@@ -749,8 +749,13 @@ class TestIDSClient(BaseTest):
         mock_post.return_value.status_code = 202
         self._insertar_eventos(250)
         with app.app_context():
-            # Forzamos un orden alterado para asegurar que la query lo ordena bien
-            ids_esperados = [log.log_id for log in app_module.AuditLog.query.order_by(app_module.AuditLog.timestamp.asc(), app_module.AuditLog.id.asc()).all()]
+            # Guardamos los IDs generados respetando el orden
+            eventos = app_module.AuditLog.query.order_by(app_module.AuditLog.timestamp.asc(), app_module.AuditLog.id.asc()).all()
+            ids_esperados = [log.log_id for log in eventos]
+            
+            # Limpiamos la caché de la sesión para evitar que el commit del primer lote 
+            # afecte a la lectura del segundo lote.
+            db.session.expunge_all()
             
             app_module.enviar_lote_al_ids()
             self.assertEqual(mock_post.call_count, 2)
@@ -777,7 +782,6 @@ class TestIDSClient(BaseTest):
             app_module.enviar_lote_al_ids()
             self.assertEqual(app_module.AuditLog.query.filter_by(enviado=False).count(), 2)
             self.assertEqual(mock_post.call_count, 1)
-
 
 if __name__ == "__main__":
     unittest.main()
