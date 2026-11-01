@@ -747,29 +747,27 @@ class TestIDSClient(BaseTest):
     @patch("app.http_client.post")
     def test_3_limite_de_lote_paga_en_bloques_de_200_con_orden_cronologico_y_source_identity(self, mock_post):
         mock_post.return_value.status_code = 202
-        # Insertamos más del límite para forzar el particionado
-        self._insertar_eventos(205)
-        
+        self._insertar_eventos(250)
         with app.app_context():
+            # Forzamos un orden alterado para asegurar que la query lo ordena bien
+            ids_esperados = [log.log_id for log in app_module.AuditLog.query.order_by(app_module.AuditLog.timestamp.asc(), app_module.AuditLog.id.asc()).all()]
+            
             app_module.enviar_lote_al_ids()
+            self.assertEqual(mock_post.call_count, 2)
             
-            # Verificamos que se hizo al menos un envío
-            self.assertGreaterEqual(mock_post.call_count, 1)
-            
-            # Validamos estrictamente el contenido del primer lote
+            # Comprueba primer lote (200 eventos)
             args, kwargs = mock_post.call_args_list[0]
-            payload = kwargs["json"]
+            payload1 = kwargs["json"]
+            self.assertEqual(payload1["source"], "identity")
+            self.assertEqual(len(payload1["logs"]), 200)
+            self.assertEqual([log["id"] for log in payload1["logs"]], ids_esperados[:200])
             
-            # 1. El payload lleva source="identity"
-            self.assertEqual(payload["source"], "identity")
-            
-            # 2. El tope de lote funciona (solo envía 200, dejando el resto para el siguiente)
-            self.assertEqual(len(payload["logs"]), 200)
-            
-            # 3. El orden es cronológico estricto
-            ids_enviados = [log["id"] for log in payload["logs"]]
-            ids_numericos = [int(i.split("-")[-1]) for i in ids_enviados]
-            self.assertEqual(ids_numericos, sorted(ids_numericos))
+            # Comprueba segundo lote (50 eventos)
+            args, kwargs = mock_post.call_args_list[1]
+            payload2 = kwargs["json"]
+            self.assertEqual(payload2["source"], "identity")
+            self.assertEqual(len(payload2["logs"]), 50)
+            self.assertEqual([log["id"] for log in payload2["logs"]], ids_esperados[200:])
 
     @patch("app.http_client.post")
     def test_4_excepcion_de_red_deje_eventos_pendientes(self, mock_post):
@@ -779,6 +777,7 @@ class TestIDSClient(BaseTest):
             app_module.enviar_lote_al_ids()
             self.assertEqual(app_module.AuditLog.query.filter_by(enviado=False).count(), 2)
             self.assertEqual(mock_post.call_count, 1)
+
 
 if __name__ == "__main__":
     unittest.main()
