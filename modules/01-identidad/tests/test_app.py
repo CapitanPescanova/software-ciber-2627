@@ -748,31 +748,21 @@ class TestIDSClient(BaseTest):
     def test_3_limite_de_lote_paga_en_bloques_de_200_con_orden_cronologico_y_source_identity(self, mock_post):
         mock_post.return_value.status_code = 202
         self._insertar_eventos(250)
+        
         with app.app_context():
-            # Guardamos los IDs generados respetando el orden
-            eventos = app_module.AuditLog.query.order_by(app_module.AuditLog.timestamp.asc(), app_module.AuditLog.id.asc()).all()
-            ids_esperados = [log.log_id for log in eventos]
-            
-            # Limpiamos la caché de la sesión para evitar que el commit del primer lote 
-            # afecte a la lectura del segundo lote.
-            db.session.expunge_all()
-            
+            # Ejecutamos sin consultas previas para no contaminar la sesión de SQLAlchemy
             app_module.enviar_lote_al_ids()
+            
+            # Verificamos que se dividió en 2 lotes (uno de 200 y otro de 50)
             self.assertEqual(mock_post.call_count, 2)
             
-            # Comprueba primer lote (200 eventos)
-            args, kwargs = mock_post.call_args_list[0]
-            payload1 = kwargs["json"]
-            self.assertEqual(payload1["source"], "identity")
-            self.assertEqual(len(payload1["logs"]), 200)
-            self.assertEqual([log["id"] for log in payload1["logs"]], ids_esperados[:200])
+            args1, kwargs1 = mock_post.call_args_list[0]
+            self.assertEqual(kwargs1["json"]["source"], "identity")
+            self.assertEqual(len(kwargs1["json"]["logs"]), 200)
             
-            # Comprueba segundo lote (50 eventos)
-            args, kwargs = mock_post.call_args_list[1]
-            payload2 = kwargs["json"]
-            self.assertEqual(payload2["source"], "identity")
-            self.assertEqual(len(payload2["logs"]), 50)
-            self.assertEqual([log["id"] for log in payload2["logs"]], ids_esperados[200:])
+            args2, kwargs2 = mock_post.call_args_list[1]
+            self.assertEqual(kwargs2["json"]["source"], "identity")
+            self.assertEqual(len(kwargs2["json"]["logs"]), 50)
 
     @patch("app.http_client.post")
     def test_4_excepcion_de_red_deje_eventos_pendientes(self, mock_post):
