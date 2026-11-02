@@ -32,7 +32,11 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - "8003:80"
+      - "127.0.0.1:8003:80"
+      - "127.0.0.1:2121:2121"
+      - "127.0.0.1:2222:2222"
+    environment:
+      - HONEYPOT_SSH_HOSTKEY=/http/data/hostkey.ser
     volumes:
       - honeypot-data:/http/data
     networks:
