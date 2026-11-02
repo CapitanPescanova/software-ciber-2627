@@ -57,26 +57,28 @@ En el Sprint 3 el grupo 8 hará pentesting contra el honeypot.
 
 | Historia | Criterio | Prueba | Tipo | CI | Estado |
 | --- | --- | --- | --- | --- | --- |
-| HP-12 | El sexto intento de una IP en 1 minuto es `fuerza_bruta` | `FuerzaBrutaIntegracionTest`: `elSextoIntentoEsFuerzaBrutaYLosAnterioresNoCambian` y `enElFtpSoloCuentanLosComandosPass` | Integración | Sí | Hecho (falta el SSH, `HP-67`) |
+| HP-12 | El sexto intento de una IP en 1 minuto es `fuerza_bruta` | `FuerzaBrutaIntegracionTest`: `elSextoIntentoEsFuerzaBrutaYLosAnterioresNoCambian` y `enElFtpSoloCuentanLosComandosPass` | Integración | Sí | Hecho |
 | HP-12 | Los 5 primeros conservan su tipo y no se reenvían | Mismo test y `EventoMapperTest` | Integración y unitaria | Sí | Hecho |
 | HP-12 | 5 intentos o menos, o separados, no son fuerza bruta | `cincoIntentosEnUnMinutoNoSonFuerzaBruta` y `seisIntentosSeparadosMasDeUnMinutoNoSonFuerzaBruta` | Integración | Sí | Hecho |
 | HP-12 | El umbral se cambia en la configuración | `FuerzaBrutaConfigTest` y `ClasificadorAtaquesServiceTest` | Unitaria | Sí | Hecho |
 | HP-6 | Banner de bienvenida | `FtpHoneypotIntegrationTest` comprueba el 220 | Integración | Sí | Hecho |
-| HP-6 | El acceso siempre se rechaza | Cliente FTP contra `127.0.0.1:2121`, el PASS devuelve 530 | Manual | No | Por confirmar |
+| HP-6 | El acceso siempre se rechaza | Cliente FTP contra `127.0.0.1:2121`: tras USER y PASS responde 530 | Manual | No | Hecho |
 | HP-6 | USER, PASS y LIST quedan registrados | `FtpHoneypotIntegrationTest` (LIST, CWD y RETR) y `FuerzaBrutaIntegracionTest` (USER y PASS) | Integración | Sí | Hecho |
 | HP-6 | Nunca devuelve archivos reales | `FtpHoneypotIntegrationTest`: RETR sin login devuelve 530 | Integración | Sí | Hecho |
 | HP-2 | Banner realista y pide credenciales | `ssh -p 2222 prueba@127.0.0.1`: sale `OpenSSH_8.9p1 Ubuntu` y pide contraseña | Manual | No | Hecho |
 | HP-2 | Siempre rechaza y nunca da terminal | Mismo `ssh`: vuelve a pedir la contraseña | Manual | No | Hecho |
-| HP-2 | Registra usuario y contraseña | Pendiente (`HP-67`) | | | Pendiente |
+| HP-2 | Registra usuario y contraseña | Prueba del registro SSH (`HP-67`) | Unitaria (prevista) | Sí | Pendiente |
+| HP-2 | Los intentos SSH suman para la fuerza bruta | Prueba del registro SSH con el clasificador (`HP-67`) | Integración (prevista) | Sí | Pendiente |
 | HP-2 | Usa una librería SSH existente | `pom.xml`: Apache MINA SSHD | Revisión | No | Hecho |
 | HP-2 (HP-69) | La huella SSH no cambia al recrear el contenedor | `ssh-keyscan -p 2222 127.0.0.1` antes y después de `docker compose down` y `up` | Manual | No | Hecho |
-| HP-25 | Una credencial de la lista se etiqueta `credenciales_por_defecto` | `ClasificadorAtaquesServiceTest` y `CredencialesPorDefectoIntegracionTest` | Unitaria e integración | Sí | Pendiente (PR de `HP-82`, `HP-83` y `HP-84`) |
-| HP-25 | La lista se amplía sin cambiar el código | `CredencialesPorDefectoConfigTest` | Unitaria | Sí | Pendiente (PR de `HP-82`, `HP-83` y `HP-84`) |
+| HP-25 | Una credencial de la lista se etiqueta `credenciales_por_defecto` | `ClasificadorAtaquesServiceTest` y `CredencialesPorDefectoIntegracionTest` | Unitaria e integración | Sí | Pendiente (PR #25) |
+| HP-25 | La lista se amplía sin cambiar el código | `CredencialesPorDefectoConfigTest` | Unitaria | Sí | Pendiente (PR #25) |
+| HP-25 | Si es fuerza bruta y credencial por defecto a la vez, prevalece `fuerza_bruta` | `ClasificadorAtaquesServiceTest`: `siAdemasEsFuerzaBrutaGanaFuerzaBruta` | Unitaria | Sí | Pendiente (PR #25) |
 | HP-30 | Solo expone los puertos señuelo y solo en el entorno | `docker compose ps`: 8003, 2121 y 2222 solo en `127.0.0.1` (PR #20) | Manual | No | Hecho |
 | HP-30 | No corre como root ni ve credenciales de otros módulos | `docker compose exec honeypot id` (usuario `http`) y revisar sus variables de entorno | Manual | No | Por confirmar |
-| HP-30 | Solo sale tráfico hacia el SIEM | Pendiente (`HP-68`) | Manual | No | Pendiente |
-| HP-32 | Más de 10 peticiones por segundo devuelven 429 | Pendiente (`HP-71`) | | | Pendiente |
-| HP-32 | Pasan al menos 6 antes de rechazar | Pendiente (`HP-71`) | | | Pendiente |
-| HP-32 | Resumen de rechazos en la BD | Pendiente (`HP-88`) | | | Pendiente |
+| HP-30 | Solo alcanza al SIEM y a su BD; la conexión a otros módulos falla | `docker compose exec honeypot wget -qO- http://siem/health` funciona y lo mismo contra otro módulo falla (`HP-68`). La salida a internet queda para el Sprint 3 | Manual | No | Pendiente |
+| HP-32 | Más de 10 peticiones por segundo devuelven 429 | `IpRateLimiterServiceTest` (`HP-71`, PR #18) | Unitaria (prevista) | Sí | Pendiente |
+| HP-32 | Pasan al menos 6 antes de rechazar | `IpRateLimiterServiceTest` (`HP-71`, PR #18) | Unitaria (prevista) | Sí | Pendiente |
+| HP-32 | Resumen de rechazos en la BD | Prueba del servicio de resumen (`HP-88`) | Unitaria (prevista) | Sí | Pendiente |
 | HP-32 | Límites de CPU y memoria | Revisar el compose y `docker stats` (`HP-72`) | Manual | No | Pendiente |
 | HP-32 | El resto de módulos sigue funcionando | Lanzar una ráfaga y comprobar el `/health` de otros módulos (`HP-73`) | Manual | No | Pendiente |
