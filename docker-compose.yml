@@ -43,7 +43,8 @@ services:
     volumes:
       - honeypot-data:/http/data
     networks:
-      - ciberurjc
+      - honeypot-publica
+      - honeypot-siem
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1/health"]
       interval: 10s
@@ -72,6 +73,7 @@ services:
       - "8005:80"
     networks:
       - ciberurjc
+      - honeypot-siem
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1/health"]
       interval: 10s
@@ -121,6 +123,11 @@ services:
 networks:
   ciberurjc:
     driver: bridge
+  honeypot-publica:
+    driver: bridge
+  honeypot-siem:
+    driver: bridge
+    internal: true
 
 volumes:
   honeypot-data:
