@@ -31,6 +31,9 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+    cpus: "0.5"
+    mem_limit: 512m
+    mem_reservation: 256m
     ports:
       - "127.0.0.1:8003:80"
       - "127.0.0.1:2121:2121"
