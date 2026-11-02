@@ -34,6 +34,15 @@ class CredencialesPorDefectoConfigTest {
     }
 
     @Test
+    void conUnCorreoSeComparaLoDeAntesDeLaArroba() {
+        CredencialesPorDefectoConfig config = new CredencialesPorDefectoConfig("admin:admin,root:toor");
+        assertThat(config.esPorDefecto("admin@admin.com", "admin")).isTrue();
+        assertThat(config.esPorDefecto("root@empresa.es", "toor")).isTrue();
+        assertThat(config.esPorDefecto("pepe@admin.com", "admin")).isFalse();
+        assertThat(config.esPorDefecto("admin@admin.com", "Qwerty.2026")).isFalse();
+    }
+
+    @Test
     void sinUsuarioOContrasenaNoEsPorDefecto() {
         CredencialesPorDefectoConfig config = new CredencialesPorDefectoConfig("admin:admin");
         assertThat(config.esPorDefecto(null, "admin")).isFalse();

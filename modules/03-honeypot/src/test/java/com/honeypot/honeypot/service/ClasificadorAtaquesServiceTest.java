@@ -74,6 +74,13 @@ class ClasificadorAtaquesServiceTest {
                 clasificador.clasificar(IP, ahora, "admin", "admin"));
     }
 
+    // Formato del login web: correo y contraseña
+    @Test
+    void unCorreoConCredencialDeLaListaEsCredencialesPorDefecto() {
+        assertEquals(ClasificadorAtaquesService.CREDENCIALES_POR_DEFECTO,
+                clasificador.clasificar(IP, ahora, "admin@admin.com", "admin"));
+    }
+
     @Test
     void unaCredencialNormalNoSeEtiqueta() {
         assertNull(clasificador.clasificar(IP, ahora, "admin", "Qwerty.2026"));

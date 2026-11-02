@@ -23,12 +23,21 @@ public class CredencialesPorDefectoConfig {
                 .collect(Collectors.toSet());
     }
 
-    /** true si la pareja usuario/contraseña está en la lista. */
+    /**
+     * true si la pareja usuario/contraseña está en la lista.
+     * En el login web el usuario es un correo, así que se compara lo que va antes de la @:
+     * admin@loquesea.com con contraseña admin cuenta como admin:admin.
+     */
     public boolean esPorDefecto(String usuario, String contrasena) {
         if (usuario == null || contrasena == null) {
             return false;
         }
-        return credenciales.contains(usuario.trim() + ":" + contrasena);
+        String nombre = usuario.trim();
+        int arroba = nombre.indexOf('@');
+        if (arroba > 0) {
+            nombre = nombre.substring(0, arroba);
+        }
+        return credenciales.contains(nombre + ":" + contrasena);
     }
 
     public Set<String> getCredenciales() {
