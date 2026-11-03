@@ -70,7 +70,7 @@ class FuerzaBrutaIntegracionTest {
 
         // Tres logins FTP con un LIST cada uno: 9 filas en la BD, pero solo 3 contraseñas
         loginFtp(ip, 3);
-        assertThat(clasificador.clasificar(ip, Instant.now())).isNull();
+        assertThat(clasificador.clasificar(ip, Instant.now(), null, null)).isNull();
 
         // Tres logins más: el sexto PASS sí es fuerza bruta
         loginFtp(ip, 3);
@@ -94,7 +94,7 @@ class FuerzaBrutaIntegracionTest {
             intento.setServiceAttacked("honeypot-web");
             intento.setUsername("admin");
             intento.setCredentialAttempt("clave" + i);
-            intento.setTipoAtaque(clasificador.clasificar(ip, momento));
+            intento.setTipoAtaque(clasificador.clasificar(ip, momento, intento.getUsername(), intento.getCredentialAttempt()));
             repositorio.save(intento);
             etiquetas.add(intento.getTipoAtaque());
         }
