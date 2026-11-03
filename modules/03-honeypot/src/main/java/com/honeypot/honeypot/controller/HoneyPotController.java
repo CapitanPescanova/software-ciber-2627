@@ -3,7 +3,9 @@ package com.honeypot.honeypot.controller;
 import com.honeypot.honeypot.model.EventoContrato;
 import com.honeypot.honeypot.model.LoginAttempt;
 import com.honeypot.honeypot.repository.LoginAttemptRepository;
+import com.honeypot.honeypot.service.ClasificadorAtaquesService;
 import com.honeypot.honeypot.service.EventoMapper;
+import com.honeypot.honeypot.service.IpRateLimiterService;
 import com.honeypot.honeypot.service.SiemSenderService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import tools.jackson.databind.json.JsonMapper;
+import jakarta.servlet.http.HttpServletResponse;
 
 @Controller
 public class HoneyPotController {
@@ -27,15 +30,21 @@ public class HoneyPotController {
     private final EventoMapper eventoMapper;
     private final SiemSenderService siemSenderService;
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
+    private final IpRateLimiterService ipRateLimiterService;
+    private final ClasificadorAtaquesService clasificadorAtaquesService;
 
     public HoneyPotController(
             LoginAttemptRepository loginAttemptRepository,
             EventoMapper eventoMapper,
-            SiemSenderService siemSenderService
+            SiemSenderService siemSenderService,
+            IpRateLimiterService ipRateLimiterService,
+            ClasificadorAtaquesService clasificadorAtaquesService
     ) {
         this.loginAttemptRepository = loginAttemptRepository;
         this.eventoMapper = eventoMapper;
         this.siemSenderService = siemSenderService;
+        this.ipRateLimiterService = ipRateLimiterService;
+        this.clasificadorAtaquesService = clasificadorAtaquesService;
     }
 
     @GetMapping({"/", "/login"})
@@ -45,8 +54,21 @@ public class HoneyPotController {
 
     @PostMapping("/login")
     public String submitLogin(@RequestParam MultiValueMap<String, String> parameters,
-            HttpServletRequest request, Model model) {
+            HttpServletRequest request, HttpServletResponse response,  Model model) {
         String password = firstValue(parameters, "password", "pass", "pwd");
+
+        String ip = request.getRemoteAddr();
+        //Cpmprueba el limite antes de procesar el intento
+        boolean allowed = ipRateLimiterService.allowRequest(ip);
+
+        if (!allowed) {
+            response.setStatus(429);
+            model.addAttribute("message", "Demasiadas peticiones. Inténtalo de nuevo más tarde.");
+            // No guardar en BD, no clasificar y no enviar al SIEM.
+            // No registrar cada rechazo para evitar inundar los logs.
+            return "login";
+        }
+
         LoginAttempt attempt = new LoginAttempt();
         attempt.setSourceIp(request.getRemoteAddr());
         attempt.setOccurredAt(Instant.now());
@@ -57,15 +79,23 @@ public class HoneyPotController {
         attempt.setAttemptedCommand(truncate(firstValue(parameters, "command", "cmd"), 2000));
         attempt.setRequestPath(truncate(request.getRequestURI(), 512));
         attempt.setUserAgent(truncate(request.getHeader("User-Agent"), 512));
-        
+
+        // Clasificar el intento antes de guardarlo (HP-76 y HP-83)
+        attempt.setTipoAtaque(clasificadorAtaquesService.clasificar(
+                attempt.getSourceIp(), attempt.getOccurredAt(),
+                attempt.getUsername(), attempt.getCredentialAttempt()));
+
         // 1. Guardar primero para que la BD asigne el ID
         loginAttemptRepository.save(attempt);
 
         // 2. Enviar en segundo plano para no demorar la respuesta al atacante
         CompletableFuture.runAsync(() -> {
             try {
-                // Evento con event_type "fuerza_bruta" del ejemplo acordado
-                EventoContrato evento = eventoMapper.mapearAEvento(attempt, "fuerza_bruta", "medium");
+                // event_type: la etiqueta guardada o "intento_login" si no tiene (HP-77)
+                // Severidad "high" para credenciales por defecto, como en contract/examples
+                String severidad = ClasificadorAtaquesService.CREDENCIALES_POR_DEFECTO
+                        .equals(attempt.getTipoAtaque()) ? "high" : "medium";
+                EventoContrato evento = eventoMapper.mapearAEvento(attempt, severidad);
                 String json = jsonMapper.writeValueAsString(evento);
 
                 int statusCode = siemSenderService.enviarEvento(json);
@@ -88,6 +118,7 @@ public class HoneyPotController {
                 limpiar(attempt.getUsername()), loginAttemptRepository.count());
 
         model.addAttribute("message", "Credenciales incorrectas.");
+
         return "login";
     }
 
