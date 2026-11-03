@@ -11,7 +11,7 @@ El cuerpo del evento contiene **exactamente 8 campos obligatorios en la raíz**:
 | `event_id` | String | Sí | Identificador idempotente prefijado con el módulo y el ID del registro. | `"HP-101"` |
 | `timestamp` | String | Sí | Fecha y hora en formato UTC ISO-8601 (`YYYY-MM-DDTHH:mm:ssZ`). | `"2026-10-12T14:30:00Z"` |
 | `source` | String | Sí | Identificador del sistema emisor. Fijo para este módulo. | `"honeypot"` |
-| `event_type` | String | Sí | Tipología de la alerta (`fuerza_bruta`, `credenciales_por_defecto`, `escaneo`). | `"fuerza_bruta"` |
+| `event_type` | String | Sí | Tipología del evento: `intento_login` (intento sin clasificar), `fuerza_bruta`, `credenciales_por_defecto` o `escaneo`. Si es a la vez fuerza bruta y credenciales por defecto, se envía `fuerza_bruta`. | `"intento_login"` |
 | `severity` | String | Sí | Severidad normalizada: `low`, `medium`, `high`, `critical`. | `"medium"` |
 | `title` | String | Sí | Resumen conciso del evento. | `"Intento de acceso en el login falso"` |
 | `description`| String | Sí | Descripción contextual del atacante y credenciales. | `"Intento desde 192.168.1.45 con el usuario admin"` |
@@ -22,7 +22,7 @@ El cuerpo del evento contiene **exactamente 8 campos obligatorios en la raíz**:
 | Campo | Tipo | Descripción |
 | :--- | :--- | :--- |
 | `source_ip` | String | Dirección IP origen del intento de acceso. |
-| `service` | String | Servicio atacado (ej. `honeypot-web`). |
+| `service` | String | Servicio atacado (`honeypot-web` o `ftp`; el valor del SSH se añadirá con HP-67). |
 | `username` | String | Nombre de usuario empleado (o `null` si no aplica). |
 | `credential` | String | Contraseña o credencial intentada (o `null` si no aplica). |
 | `command` | String | Comando ejecutado en caso de interactividad (o `null`). |
