@@ -13,5 +13,4 @@ public interface LoginAttemptRepository extends JpaRepository<LoginAttempt, Long
      * guarda también los comandos USER, LIST... y esos no son intentos de login (HP-78).
      */
     long countBySourceIpAndOccurredAtAfterAndCredentialAttemptIsNotNull(String sourceIp, Instant desde);
-
 }
