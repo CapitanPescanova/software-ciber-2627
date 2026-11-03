@@ -1,67 +1,66 @@
 package com.honeypot.honeypot.ssh;
 
-import com.honeypot.honeypot.config.FuerzaBrutaConfig;
 import com.honeypot.honeypot.model.EventoContrato;
 import com.honeypot.honeypot.model.LoginAttempt;
 import com.honeypot.honeypot.repository.LoginAttemptRepository;
+import com.honeypot.honeypot.service.ClasificadorAtaquesService;
 import com.honeypot.honeypot.service.EventoMapper;
 import com.honeypot.honeypot.service.SiemSenderService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-// Copia aquí el MISMO import de JsonMapper que usa HoneyPotController
 import tools.jackson.databind.json.JsonMapper;
 
-import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * Guarda cada intento SSH en la BD y lo envía al SIEM (HP-67).
+ * Sigue el mismo flujo que el login web y el FTP: clasificar, guardar y enviar con el EventoMapper.
+ */
 @Component
 public class SshAttemptRecorder implements SshAttemptListener {
 
     private static final Logger log = LoggerFactory.getLogger(SshAttemptRecorder.class);
 
-    private static final String SERVICE_NAME = "honeypot-ssh";
-    private static final String EVENT_FUERZA_BRUTA = "fuerza_bruta";
-    private static final String EVENT_INTENTO = "intento_acceso"; // provisional: confirmar con el equipo del SIEM
-    private static final String SEVERITY_FUERZA_BRUTA = "medium";
-    private static final String SEVERITY_INTENTO = "low";
+    static final String SERVICE_NAME = "honeypot-ssh";
 
     private final LoginAttemptRepository repository;
+    private final ClasificadorAtaquesService clasificador;
     private final EventoMapper eventoMapper;
     private final SiemSenderService siemSenderService;
-    private final FuerzaBrutaConfig fuerzaBrutaConfig;
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
 
     public SshAttemptRecorder(LoginAttemptRepository repository,
+                              ClasificadorAtaquesService clasificador,
                               EventoMapper eventoMapper,
-                              SiemSenderService siemSenderService,
-                              FuerzaBrutaConfig fuerzaBrutaConfig) {
+                              SiemSenderService siemSenderService) {
         this.repository = repository;
+        this.clasificador = clasificador;
         this.eventoMapper = eventoMapper;
         this.siemSenderService = siemSenderService;
-        this.fuerzaBrutaConfig = fuerzaBrutaConfig;
     }
 
     @Override
     public void onAttempt(SshAttemptData data) {
-        // 1. Guardar primero para que la BD asigne el ID (igual que el login)
         LoginAttempt attempt = toLoginAttempt(data);
-        repository.save(attempt);
 
-        // 2. Etiquetar según el umbral, contando intentos de TODOS los servicios
-        boolean fuerzaBruta = esFuerzaBruta(attempt);
-        String eventType = fuerzaBruta ? EVENT_FUERZA_BRUTA : EVENT_INTENTO;
-        String severity = fuerzaBruta ? SEVERITY_FUERZA_BRUTA : SEVERITY_INTENTO;
+        // 1. Clasificar antes de guardar, como el login y el FTP (HP-12 y HP-25)
+        attempt.setTipoAtaque(clasificador.clasificar(attempt.getSourceIp(), attempt.getOccurredAt(),
+                attempt.getUsername(), attempt.getCredentialAttempt()));
+
+        // 2. Guardar
+        repository.save(attempt);
 
         // La contraseña no se escribe en el log a propósito
         log.info("Intento SSH guardado: ip={} usuario={} metodo={} tipo={}",
-                attempt.getSourceIp(), limpiar(attempt.getUsername()), data.authMethod(), eventType);
+                attempt.getSourceIp(), limpiar(attempt.getUsername()), data.authMethod(),
+                EventoMapper.tipoDeEvento(attempt));
 
         // 3. Envío al SIEM en segundo plano
-        enviarAlSiem(attempt, eventType, severity);
+        enviarAlSiem(attempt);
     }
 
-    private LoginAttempt toLoginAttempt(SshAttemptData data) {
+    LoginAttempt toLoginAttempt(SshAttemptData data) {
         LoginAttempt attempt = new LoginAttempt();
         attempt.setSourceIp(data.sourceIp());
         attempt.setOccurredAt(data.occurredAt());
@@ -73,28 +72,20 @@ public class SshAttemptRecorder implements SshAttemptListener {
             attempt.setCredentialAttempt(truncate(data.password(), 2000));
             attempt.setPasswordLength(data.password() == null ? null : data.password().length());
         } else {
-            attempt.setCredentialAttempt(truncate(data.publicKeyFingerprint(), 2000));
+            // La huella de la clave no es una contraseña: va en attemptedCommand para que no cuente
+            // como intento en la fuerza bruta (el cliente ssh prueba sus claves antes de pedir contraseña)
+            attempt.setAttemptedCommand(truncate("publickey " + data.publicKeyFingerprint(), 2000));
         }
-
-        // Campos propios de web: no aplican en SSH
-        attempt.setRequestPath(null);
-        attempt.setAttemptedCommand(null);
         return attempt;
     }
 
-    private boolean esFuerzaBruta(LoginAttempt attempt) {
-        if (attempt.getSourceIp() == null) {
-            return false;
-        }
-        Instant desde = attempt.getOccurredAt().minusSeconds(fuerzaBrutaConfig.getVentanaSegundos());
-        long intentos = repository.countBySourceIpAndOccurredAtAfter(attempt.getSourceIp(), desde);
-        return intentos > fuerzaBrutaConfig.getMaxIntentos();
-    }
-
-    private void enviarAlSiem(LoginAttempt attempt, String eventType, String severity) {
+    private void enviarAlSiem(LoginAttempt attempt) {
         CompletableFuture.runAsync(() -> {
             try {
-                EventoContrato evento = eventoMapper.mapearAEvento(attempt, eventType, severity);
+                // Severidad "high" para credenciales por defecto, como en el login web
+                String severidad = ClasificadorAtaquesService.CREDENCIALES_POR_DEFECTO
+                        .equals(attempt.getTipoAtaque()) ? "high" : "medium";
+                EventoContrato evento = eventoMapper.mapearAEvento(attempt, severidad);
                 String json = jsonMapper.writeValueAsString(evento);
                 int statusCode = siemSenderService.enviarEvento(json);
 
