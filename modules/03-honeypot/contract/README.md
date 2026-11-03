@@ -22,7 +22,7 @@ El cuerpo del evento contiene **exactamente 8 campos obligatorios en la raíz**:
 | Campo | Tipo | Descripción |
 | :--- | :--- | :--- |
 | `source_ip` | String | Dirección IP origen del intento de acceso. |
-| `service` | String | Servicio atacado (`honeypot-web` o `ftp`; el valor del SSH se añadirá con HP-67). |
+| `service` | String | Servicio atacado (`honeypot-web`, `ftp` o `honeypot-ssh`). |
 | `username` | String | Nombre de usuario empleado (o `null` si no aplica). |
 | `credential` | String | Contraseña o credencial intentada (o `null` si no aplica). |
 | `command` | String | Comando ejecutado en caso de interactividad (o `null`). |
