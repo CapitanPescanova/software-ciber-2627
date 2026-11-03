@@ -1,5 +1,6 @@
 package com.honeypot.honeypot.service;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -8,8 +9,8 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class IpRateLimiterService {
 
-
-    private static final int MAX_REQUESTS = 5;
+    @Value("${honeypot.rate-limit.max-peticiones}")
+    private int maxPeticiones;
 
     private static final long WINDOW_NANOS = TimeUnit.SECONDS.toNanos(1);
 
@@ -29,7 +30,7 @@ public class IpRateLimiterService {
             }
 
             // Todavía hay peticiones disponibles
-            if (window.count < MAX_REQUESTS) {
+            if (window.count < maxPeticiones) {
 
                 window.count++;
 

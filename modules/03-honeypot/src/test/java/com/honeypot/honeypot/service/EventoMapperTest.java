@@ -51,4 +51,31 @@ class EventoMapperTest {
         assertEquals("/login", evento.details().get("ruta"));
         assertEquals("Mozilla/5.0", evento.details().get("navegador"));
     }
+
+    @Test
+    @DisplayName("HP-77: un intento sin etiqueta se envia como intento_login")
+    void sinEtiquetaSeEnviaComoIntentoLogin() {
+        LoginAttempt attempt = new LoginAttempt();
+        attempt.setOccurredAt(Instant.parse("2026-10-27T12:00:00Z"));
+        attempt.setSourceIp("192.168.1.100");
+        attempt.setServiceAttacked("honeypot-web");
+
+        EventoContrato evento = mapper.mapearAEvento(attempt, "medium");
+
+        assertEquals("intento_login", evento.eventType());
+    }
+
+    @Test
+    @DisplayName("HP-77: un intento etiquetado como fuerza_bruta se envia con esa etiqueta")
+    void conEtiquetaSeEnviaLaEtiqueta() {
+        LoginAttempt attempt = new LoginAttempt();
+        attempt.setOccurredAt(Instant.parse("2026-10-27T12:00:00Z"));
+        attempt.setSourceIp("192.168.1.100");
+        attempt.setServiceAttacked("honeypot-web");
+        attempt.setTipoAtaque(ClasificadorAtaquesService.FUERZA_BRUTA);
+
+        EventoContrato evento = mapper.mapearAEvento(attempt, "medium");
+
+        assertEquals("fuerza_bruta", evento.eventType());
+    }
 }
