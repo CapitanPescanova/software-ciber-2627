@@ -48,3 +48,13 @@ Al SIEM se envía como `event_type` la etiqueta guardada en el intento. Si no ti
 | Propiedad | Valor por defecto | Qué hace |
 | --- | --- | --- |
 | `honeypot.rate-limit.max-peticiones` | 10 | Peticiones por segundo y por IP. Las de más reciben 429 y no se guardan. Tiene que ser mayor que el umbral de fuerza bruta |
+
+## Configuración de las credenciales por defecto
+
+También en `application.properties`:
+
+| Propiedad | Valor | Qué hace |
+| --- | --- | --- |
+| `honeypot.credenciales-por-defecto` | `admin:admin,root:root,...` | Lista de credenciales típicas, en formato `usuario:contraseña` separadas por comas |
+
+Para añadir una credencial basta con ponerla en la lista, sin tocar el código. En el login web el usuario es un correo, así que se compara lo que va antes de la @: `admin@loquesea.com` con la contraseña `admin` cuenta como `admin:admin`. Un intento que usa una de ellas se etiqueta como `credenciales_por_defecto` y se envía al SIEM con severidad `high`. Si además es fuerza bruta, gana `fuerza_bruta` (acuerdo con el grupo 5). En el FTP todavía no se comprueba, porque el usuario y la contraseña llegan en comandos distintos.
