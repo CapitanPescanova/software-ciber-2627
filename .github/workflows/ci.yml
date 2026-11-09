@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, equipo-03-honeypot]
+    branches: [main, equipo-*]
   push:
-    branches: [main, equipo-03-honeypot]
+    branches: [main, equipo-*]
 
 jobs:
   build-and-health:

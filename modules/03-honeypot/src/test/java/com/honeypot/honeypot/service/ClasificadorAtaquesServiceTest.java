@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.honeypot.honeypot.config.CredencialesPorDefectoConfig;
 import com.honeypot.honeypot.config.FuerzaBrutaConfig;
 import com.honeypot.honeypot.repository.LoginAttemptRepository;
 import java.time.Instant;
@@ -27,27 +28,28 @@ class ClasificadorAtaquesServiceTest {
         config = mock(FuerzaBrutaConfig.class);
         when(config.getMaxIntentos()).thenReturn(5);
         when(config.getVentanaSegundos()).thenReturn(60);
-        clasificador = new ClasificadorAtaquesService(repositorio, config);
+        CredencialesPorDefectoConfig credenciales = new CredencialesPorDefectoConfig("admin:admin,root:toor");
+        clasificador = new ClasificadorAtaquesService(repositorio, config, credenciales);
     }
 
     @Test
     void elQuintoIntentoEnUnMinutoNoEsFuerzaBruta() {
         when(repositorio.countBySourceIpAndOccurredAtAfterAndCredentialAttemptIsNotNull(IP, ahora.minusSeconds(60)))
                 .thenReturn(4L);
-        assertNull(clasificador.clasificar(IP, ahora));
+        assertNull(clasificador.clasificar(IP, ahora, null, null));
     }
 
     @Test
     void elSextoIntentoEnUnMinutoEsFuerzaBruta() {
         when(repositorio.countBySourceIpAndOccurredAtAfterAndCredentialAttemptIsNotNull(IP, ahora.minusSeconds(60)))
                 .thenReturn(5L);
-        assertEquals(ClasificadorAtaquesService.FUERZA_BRUTA, clasificador.clasificar(IP, ahora));
+        assertEquals(ClasificadorAtaquesService.FUERZA_BRUTA, clasificador.clasificar(IP, ahora, null, null));
     }
 
     @Test
     void usaLaVentanaDeLaConfiguracion() {
         when(config.getVentanaSegundos()).thenReturn(30);
-        clasificador.clasificar(IP, ahora);
+        clasificador.clasificar(IP, ahora, null, null);
         verify(repositorio).countBySourceIpAndOccurredAtAfterAndCredentialAttemptIsNotNull(IP, ahora.minusSeconds(30));
     }
 
@@ -58,10 +60,37 @@ class ClasificadorAtaquesServiceTest {
 
         when(repositorio.countBySourceIpAndOccurredAtAfterAndCredentialAttemptIsNotNull(IP, ahora.minusSeconds(60)))
                 .thenReturn(2L);
-        assertNull(clasificador.clasificar(IP, ahora));
+        assertNull(clasificador.clasificar(IP, ahora, null, null));
 
         when(repositorio.countBySourceIpAndOccurredAtAfterAndCredentialAttemptIsNotNull(IP, ahora.minusSeconds(60)))
                 .thenReturn(3L);
-        assertEquals(ClasificadorAtaquesService.FUERZA_BRUTA, clasificador.clasificar(IP, ahora));
+        assertEquals(ClasificadorAtaquesService.FUERZA_BRUTA, clasificador.clasificar(IP, ahora, null, null));
+    }
+
+    // HP-84: credenciales por defecto
+    @Test
+    void unaCredencialDeLaListaEsCredencialesPorDefecto() {
+        assertEquals(ClasificadorAtaquesService.CREDENCIALES_POR_DEFECTO,
+                clasificador.clasificar(IP, ahora, "admin", "admin"));
+    }
+
+    // Formato del login web: correo y contraseña
+    @Test
+    void unCorreoConCredencialDeLaListaEsCredencialesPorDefecto() {
+        assertEquals(ClasificadorAtaquesService.CREDENCIALES_POR_DEFECTO,
+                clasificador.clasificar(IP, ahora, "admin@admin.com", "admin"));
+    }
+
+    @Test
+    void unaCredencialNormalNoSeEtiqueta() {
+        assertNull(clasificador.clasificar(IP, ahora, "admin", "Qwerty.2026"));
+    }
+
+    @Test
+    void siAdemasEsFuerzaBrutaGanaFuerzaBruta() {
+        when(repositorio.countBySourceIpAndOccurredAtAfterAndCredentialAttemptIsNotNull(IP, ahora.minusSeconds(60)))
+                .thenReturn(5L);
+        assertEquals(ClasificadorAtaquesService.FUERZA_BRUTA,
+                clasificador.clasificar(IP, ahora, "root", "toor"));
     }
 }

@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import tools.jackson.databind.json.JsonMapper;
+import jakarta.servlet.http.HttpServletResponse;
 
 @Controller
 public class HoneyPotController {
@@ -53,11 +54,20 @@ public class HoneyPotController {
 
     @PostMapping("/login")
     public String submitLogin(@RequestParam MultiValueMap<String, String> parameters,
-            HttpServletRequest request, Model model) {
+            HttpServletRequest request, HttpServletResponse response,  Model model) {
         String password = firstValue(parameters, "password", "pass", "pwd");
 
         String ip = request.getRemoteAddr();
+        //Cpmprueba el limite antes de procesar el intento
         boolean allowed = ipRateLimiterService.allowRequest(ip);
+
+        if (!allowed) {
+            response.setStatus(429);
+            model.addAttribute("message", "Demasiadas peticiones. Inténtalo de nuevo más tarde.");
+            // No guardar en BD, no clasificar y no enviar al SIEM.
+            // No registrar cada rechazo para evitar inundar los logs.
+            return "login";
+        }
 
         LoginAttempt attempt = new LoginAttempt();
         attempt.setSourceIp(request.getRemoteAddr());
@@ -70,9 +80,10 @@ public class HoneyPotController {
         attempt.setRequestPath(truncate(request.getRequestURI(), 512));
         attempt.setUserAgent(truncate(request.getHeader("User-Agent"), 512));
 
-        // Clasificar el intento antes de guardarlo (HP-76)
+        // Clasificar el intento antes de guardarlo (HP-76 y HP-83)
         attempt.setTipoAtaque(clasificadorAtaquesService.clasificar(
-                attempt.getSourceIp(), attempt.getOccurredAt()));
+                attempt.getSourceIp(), attempt.getOccurredAt(),
+                attempt.getUsername(), attempt.getCredentialAttempt()));
 
         // 1. Guardar primero para que la BD asigne el ID
         loginAttemptRepository.save(attempt);
@@ -81,7 +92,10 @@ public class HoneyPotController {
         CompletableFuture.runAsync(() -> {
             try {
                 // event_type: la etiqueta guardada o "intento_login" si no tiene (HP-77)
-                EventoContrato evento = eventoMapper.mapearAEvento(attempt, "medium");
+                // Severidad "high" para credenciales por defecto, como en contract/examples
+                String severidad = ClasificadorAtaquesService.CREDENCIALES_POR_DEFECTO
+                        .equals(attempt.getTipoAtaque()) ? "high" : "medium";
+                EventoContrato evento = eventoMapper.mapearAEvento(attempt, severidad);
                 String json = jsonMapper.writeValueAsString(evento);
 
                 int statusCode = siemSenderService.enviarEvento(json);
@@ -104,12 +118,6 @@ public class HoneyPotController {
                 limpiar(attempt.getUsername()), loginAttemptRepository.count());
 
         model.addAttribute("message", "Credenciales incorrectas.");
-
-        // aquí se decide que se quiere hacer con las ip que lanzan muchas peticiones seguidas
-        if (!allowed) {
-            // response.setStatus(HttpServletResponse.SC_TOO_MANY_REQUESTS);
-            log.info("TOO MANY REQUEST: ip={} ", attempt.getSourceIp());
-        }
 
         return "login";
     }
