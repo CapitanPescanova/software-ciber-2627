@@ -29,8 +29,7 @@ La página `/attempts` (ver y borrar intentos) solo existe arrancando con
 *Nunca* poner `SPRING_PROFILES_ACTIVE=dev` en Docker: dejaría las credenciales capturadas a la vista.
 
 ## Estado
-- Hecho: login web, FTP y SSH señuelo (`HP-6`, `HP-2`), registro de intentos, envío al SIEM, detección de fuerza bruta (`HP-12`) y de credenciales por defecto (`HP-25`), aislamiento del contenedor (`HP-30`: puertos solo en local, sin root, red interna con el SIEM) y límites de peticiones y de recursos (`HP-71`, `HP-72`, `HP-73`).
-- En curso (Sprint 2): resumen de peticiones rechazadas en la BD (`HP-88`), que cierra `HP-32`.
+- Hecho: login web, FTP y SSH señuelo (`HP-6`, `HP-2`), registro de intentos, envío al SIEM, detección de fuerza bruta (`HP-12`) y de credenciales por defecto (`HP-25`), aislamiento del contenedor (`HP-30`: puertos solo en local, sin root, red interna con el SIEM) y límites de peticiones y de recursos con resumen de rechazos (`HP-32`).
 - Sprint 3: conectar con el SIEM real en Docker (`HP-21`), enviar el resumen de rechazos (`HP-86`), bloquear la salida a internet (`HP-89`) y credenciales por defecto en el FTP (`HP-90`).
 
 ## Configuración de la detección de fuerza bruta
@@ -51,6 +50,8 @@ Al SIEM se envía como `event_type` la etiqueta guardada en el intento. Si no ti
 | Propiedad | Valor por defecto | Qué hace |
 | --- | --- | --- |
 | `honeypot.rate-limit.max-peticiones` | 10 | Peticiones por segundo y por IP. Las de más reciben 429 y no se guardan. Tiene que ser mayor que el umbral de fuerza bruta |
+
+Las peticiones rechazadas no se guardan como intentos ni se envían al SIEM. Solo se guarda un resumen en la tabla `rechazos_resumen`: una fila por IP, minuto y servicio con el número de rechazos (`HP-88`). Así un ataque de muchas peticiones no llena la BD. Enviar ese resumen al SIEM queda para el Sprint 3 (`HP-86`).
 
 ## Configuración de las credenciales por defecto
 
@@ -96,6 +97,6 @@ En el Sprint 3 el grupo 8 hará pentesting contra el honeypot.
 | HP-30 | Solo alcanza al SIEM; la conexión a otros módulos falla | `docker compose exec honeypot wget -qO- http://siem/health` funciona y lo mismo contra otro módulo falla (`HP-68`, PR #26). La salida a internet queda para el Sprint 3 (`HP-89`) | Manual | No | Hecho |
 | HP-32 | Más de 10 peticiones por segundo devuelven 429 | `IpRateLimiterServiceTest`: `laPeticionOnceEnElMismoSegundoSeRechaza` (`HP-71`, PR #18) | Unitaria | Sí | Hecho |
 | HP-32 | Pasan al menos 6 antes de rechazar | Mismo test: pasan 10 y la 11 se rechaza; `cadaIpTieneSuPropioLimite` | Unitaria | Sí | Hecho |
-| HP-32 | Resumen de rechazos en la BD | Prueba del servicio de resumen (`HP-88`) | Unitaria (prevista) | Sí | Pendiente |
+| HP-32 | Resumen de rechazos en la BD | `RechazoResumenServiceIntegracionTest`: `variosRechazosEnElMismoMinutoSonUnSoloRegistro` y `otroMinutoEsOtroRegistro` (`HP-88`) | Integración | Sí | Hecho |
 | HP-32 | Límites de CPU y memoria | Revisar el compose y `docker stats` (`HP-72`, PR #22) | Manual | No | Hecho |
 | HP-32 | El resto de módulos sigue funcionando | Lanzar una ráfaga y comprobar el `/health` de otros módulos (`HP-73`) | Manual | No | Hecho |
