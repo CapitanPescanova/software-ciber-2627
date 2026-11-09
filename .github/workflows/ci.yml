@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, equipo-*]
+    branches: [main, equipo-**]
   push:
-    branches: [main, equipo-*]
+    branches: [main, equipo-**]
 
 jobs:
   build-and-health:
@@ -74,5 +74,5 @@ jobs:
       - name: Run honeypot tests
         working-directory: modules/03-honeypot
         run: |
-          chmod +x mvnw 
+          chmod +x mvnw
           ./mvnw -B test
