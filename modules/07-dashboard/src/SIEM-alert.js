@@ -1,5 +1,18 @@
 import { getAlerts, getAlertById } from "./SIEM-client.js";
+import { logout, validate } from "./auth-client.js";
 import { pintar as mostrarEstado } from "./api-estado.js";
+
+const botonLogout = document.getElementById("logout-btn");
+
+botonLogout.addEventListener("click", async () => {
+    botonLogout.disabled = true;
+
+    try {
+        await logout();
+    } finally {
+        window.location.replace("login.html");
+    }
+});
 
 const PESO = { critical: 4, high: 3, medium: 2, low: 1 };
 const TIEMPO_REFRESCO = 30000;
@@ -96,12 +109,23 @@ document.getElementById("volver-alertas").addEventListener("click", () => {
 });
 
 async function cargar() {
+  const sesion = await validate();
+
+  if (!sesion.valid) {
+    if (sesion.status === 401) {
+      sessionStorage.removeItem("token");
+      sessionStorage.removeItem("logged_in");
+    }
+    window.location.replace("login.html");
+    return;
+  }
+
   if (document.getElementById("detalle-alerta").style.display === "block") {
     return;
   }
 
-  const resultado = await getAlerts(); 
-  mostrarEstado(document.getElementById("error"), resultado, pintar); 
+  const resultado = await getAlerts();
+  mostrarEstado(document.getElementById("error"), resultado, pintar);
   document.getElementById("tabla").style.display = resultado.estado === "ok" ? "" : "none";
 
   if (resultado.estado === "ok" || resultado.estado === "vacio") {
