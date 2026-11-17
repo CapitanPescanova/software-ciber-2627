@@ -96,6 +96,14 @@ public class FtpHoneypot {
             InetSocketAddress clientAddress,
             FtpRequest request,
             String command) {
+        registrarComando(clientAddress, request, command, null);
+    }
+
+    private void registrarComando(
+            InetSocketAddress clientAddress,
+            FtpRequest request,
+            String command,
+            String usuarioSesion) {
 
         try {
             String sourceIp = clientAddress
@@ -105,7 +113,8 @@ public class FtpHoneypot {
             ftpEventService.registrarComando(
                     sourceIp,
                     command,
-                    request.getArgument()
+                    request.getArgument(),
+                    usuarioSesion
             );
         } catch (RuntimeException e) {
             log.error(
@@ -158,10 +167,16 @@ public class FtpHoneypot {
                 String command =
                         request.getCommand().toUpperCase(Locale.ROOT);
 
+                // al PASS se le pasa el USER guardado en esta sesión
+                String usuarioSesion = "PASS".equals(command)
+                        ? usuarioDeSesion(session)
+                        : null;
+
                 registrarComando(
                         session.getClientAddress(),
                         request,
-                        command
+                        command,
+                        usuarioSesion
                 );
 
                 // Usuario: permitir continuar hasta la autenticación
