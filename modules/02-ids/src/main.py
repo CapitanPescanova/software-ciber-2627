@@ -99,7 +99,6 @@ def main():
         stop_event.set()
 
     signal.signal(signal.SIGTERM, request_shutdown)
-    signal.signal(signal.SIGINT, request_shutdown)
 
     app = Thread(
         target=util.health.app.run,
@@ -135,11 +134,11 @@ def main():
     polling.start()
 
     try:
-        stop_event.wait()
+        polling.join()
     except KeyboardInterrupt:
+        logger.info("Interrupción recibida. Cerrando servicio IDS.")
         stop_event.set()
-
-    polling.join()
+        polling.join()
 
 
 if __name__ == "__main__":

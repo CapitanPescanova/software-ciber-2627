@@ -3,10 +3,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
 from werkzeug.exceptions import RequestEntityTooLarge
+from util.admin_api import admin_bp
 from util.config_loader import config
 import json
 
 app = Flask("health-check")
+app.register_blueprint(admin_bp)
 
 @app.route("/health")
 def health():
