@@ -38,6 +38,16 @@ public class FtpEventService {
     }
 
     public void registrarComando(String sourceIp, String command, String argument) {
+        registrarComando(sourceIp, command, argument, null);
+    }
+
+    /**
+     * HP-94: igual que el anterior, pero con el USER que se envió antes en la misma
+     * sesión FTP. Al llegar el PASS se junta con la contraseña para comprobar si es
+     * una credencial por defecto (misma lista y mismo clasificador que el login web).
+     */
+    public void registrarComando(String sourceIp, String command, String argument,
+            String usuarioSesion) {
 
         LoginAttempt attempt = new LoginAttempt();
 
@@ -52,6 +62,8 @@ public class FtpEventService {
         if ("USER".equals(command)) {
             attempt.setUsername(truncate(argument, 320));
         } else if (passwordCommand) {
+            // HP-94: el PASS se guarda con el USER de su sesión
+            attempt.setUsername(truncate(usuarioSesion, 320));
             attempt.setCredentialAttempt(REDACTED);
             attempt.setPasswordLength(argument == null ? null : argument.length());
         }
@@ -68,13 +80,14 @@ public class FtpEventService {
         String tipoAtaque = null;
 
         if (passwordCommand) {
-            // En el FTP el usuario y la contraseña llegan en comandos distintos (USER y PASS),
-            // así que de momento no se comprueban las credenciales por defecto
+            // HP-94: en el FTP el usuario y la contraseña llegan en comandos distintos,
+            // así que se usa el USER guardado en la sesión (HP-93). Sin USER previo,
+            // el clasificador no puede marcarlo como credencial por defecto.
             tipoAtaque = clasificadorAtaquesService.clasificar(
                     attempt.getSourceIp(),
                     attempt.getOccurredAt(),
-                    null,
-                    null
+                    usuarioSesion,
+                    argument
             );
 
             attempt.setTipoAtaque(tipoAtaque);
