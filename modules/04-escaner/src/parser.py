@@ -34,6 +34,15 @@ def severity_from_cvss(cvss):
         return "medium"
     return "low"
 
+def clean_evidence(text, max_len=300):
+    if not text:
+        return None
+    compact = " ".join(str(text).split())
+    if not compact:
+        return None
+    if len(compact) <= max_len:
+        return compact
+    return compact[: max_len - 3].rstrip() + "..."
 
 def make_event(
     event_type,
@@ -48,7 +57,8 @@ def make_event(
     script_id=None,
     cve=None,
     cvss=None,
-    # El contrato del SIEM no admite "info"; los eventos informativos
+    evidence=None,
+    # El contrato del SIEM ya admite "info"; los eventos informativos
     # usan su nivel permitido más bajo y el Dashboard los filtra del informe.
     severity="info"
 ):
@@ -60,7 +70,7 @@ def make_event(
         "severity": severity,
         "title": title,
         "description": description,
-        "details": {
+        "details": { #hay que incluir evidence (evidencia textual o null si no aplica)
             "target": {
                 "ip": ip,
                 "port": port,
@@ -71,6 +81,7 @@ def make_event(
             "tool": "nmap",
             "profile": profile,
             "script_id": script_id,
+            "evidence": evidence,
             "cve": cve,
             "cvss": cvss
         }
@@ -169,6 +180,7 @@ def _parse_script(script, ip, scan_id, profile, port=None, protocol=None, servic
             description=f"El script {script_id} ha identificado una referencia a {cve}.",
             ip=ip, port=port, protocol=protocol, service=service,
             script_id=script_id, cve=cve, cvss=cvss,
+            evidence=clean_evidence(output),
             scan_id=scan_id, profile=profile,
             severity=severity_from_cvss(cvss),
         ))
@@ -180,6 +192,7 @@ def _parse_script(script, ip, scan_id, profile, port=None, protocol=None, servic
             description=f"El script {script_id} ha señalado un posible problema de seguridad.",
             ip=ip, port=port, protocol=protocol, service=service,
             script_id=script_id, scan_id=scan_id,
+            evidence=clean_evidence(output),
             profile=profile, severity="medium",
         ))
     return events

@@ -8,19 +8,64 @@ from xml.etree.ElementTree import ParseError
 from runner import NMAP_TIMEOUT_SECONDS, start_nmap
 from parser import parse_xml
 from datetime import datetime, timezone
+import logging
 
+logger = logging.getLogger(__name__)
 
 JOBS = {}  # estructura temporal que actúa como BBDD en memoria
 SIEM_URL = os.environ.get("SIEM_URL", "http://localhost:8005/events")
 
-def publish_events_to_siem(events):
-    """Envía los hallazgos en formato común mediante POST /events hacia el SIEM."""
+def publish_events_to_siem(events, scan_id=None):
+    """Envía cada evento individualmente mediante POST /events hacia el SIEM, comprueba el acuse y registra fallos."""
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+
     for event in events:
+        sent_event_id = event.get("event_id")
         try:
-            requests.post(SIEM_URL, json=event, timeout=3)
-        except requests.exceptions.RequestException:
-            # Si el SIEM no está disponible, no rompemos la ejecución
-            pass
+            response = requests.post(
+                SIEM_URL,
+                json=event,
+                headers=headers,
+                timeout=3,
+            )
+            if response.status_code != 200:
+                logger.warning(
+                    "Fallo al publicar evento en SIEM (scan_id=%s, event_id=%s, status=%s)",
+                    scan_id,
+                    sent_event_id,
+                    response.status_code,
+                )
+                continue
+
+            try:
+                ack = response.json()
+            except ValueError:
+                logger.warning(
+                    "Acuse del SIEM no es JSON válido (scan_id=%s, event_id=%s)",
+                    scan_id,
+                    sent_event_id,
+                )
+                continue
+
+            if not isinstance(ack, dict) or ack.get("event_id") != sent_event_id:
+                logger.warning(
+                    "Acuse del SIEM con event_id no coincidente (scan_id=%s, event_id=%s, ack_event_id=%s)",
+                    scan_id,
+                    sent_event_id,
+                    ack.get("event_id") if isinstance(ack, dict) else None,
+                )
+                continue
+
+        except requests.exceptions.RequestException as exc:
+            logger.warning(
+                "Error de conexión o timeout al publicar evento en SIEM (scan_id=%s, event_id=%s, error=%s)",
+                scan_id,
+                sent_event_id,
+                type(exc).__name__,
+            )
 
 def _run_job_worker(scan_id, target, profile, xml_outfile):
     try:
@@ -53,7 +98,7 @@ def _run_job_worker(scan_id, target, profile, xml_outfile):
         JOBS[scan_id]["events"] = parse_xml(xml_content, scan_id, profile)
 
         JOBS[scan_id]["status"] = "completed"
-        publish_events_to_siem(JOBS[scan_id]["events"])
+        publish_events_to_siem(JOBS[scan_id]["events"], scan_id=scan_id)
 
     except Exception as error:
         JOBS[scan_id]["status"] = "failed"
