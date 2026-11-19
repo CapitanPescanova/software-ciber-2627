@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def _show_menu():
     print("\n=== Gestión del IDS ===")
-    print("1. Habilitar/deshabilitar una regla del IDS")
+    print("1. Desactivar una regla del IDS")
     print("2. Editar una regla del IDS existente")
     print("3. Borrar una regla del IDS existente")
     print("4. Mostrar/listar las alertas generadas por el motor")
@@ -23,10 +23,16 @@ def _disable_rule():
         return
 
     api_url = os.getenv("IDS_ADMIN_API_URL", "http://127.0.0.1:80")
+    headers = {}
+    admin_token = os.getenv("IDS_ADMIN_TOKEN")
+    if admin_token:
+        headers["Authorization"] = f"Bearer {admin_token}"
+
     try:
         response = requests.post(
             f"{api_url}/admin/rules/{rule_id}/disable",
             json={"rule_id": rule_id},
+            headers=headers,
             timeout=5,
         )
         response.raise_for_status()
@@ -43,10 +49,14 @@ def run_cli():
             _show_menu()
             try:
                 option = input("Seleccione una opción: ")
-                logger.info("Entrada del menú recibida: %s", option)
                 option = int(option)
             except ValueError:
                 logger.warning("Opción no reconocida: entrada no numérica.")
+                print("Opción no reconocida, por favor introduzca un número del 1 al 5.")
+                continue
+
+            if option not in range(1, 6):
+                logger.warning("Opción no reconocida: fuera de rango (%s).", option)
                 print("Opción no reconocida, por favor introduzca un número del 1 al 5.")
                 continue
 
@@ -67,9 +77,6 @@ def run_cli():
             elif option == 5:
                 logger.info("Cerrando CLI del IDS.")
                 break
-            else:
-                logger.warning("Opción no reconocida: fuera de rango (%s).", option)
-                print("Opción no reconocida, por favor introduzca un número del 1 al 5.")
     except KeyboardInterrupt:
         logger.info("Interrupción recibida. Cerrando CLI del IDS.")
 
