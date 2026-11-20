@@ -192,7 +192,7 @@ Exigir autenticación es un **cambio incompatible** del contrato del SIEM: los p
 | Fecha efectiva | Ratificado con G1 el **20/11**. G1 v1.4.0 en `main` el **25/11** (efectiva 26/11) y credenciales entregadas el 25/11. Autenticación activa en el compose antes del Integration Day. Recorrido autenticado y prueba de carga con G1 el **30/11** |
 | Dependencias | G1 v1.4.0: cuentas `svc-*`, secreto `siem_db_password` y lista de claves permitidas por cuenta (25/11). G7: variables nuevas del compose, coordinadas por G1 |
 
-Se actualizan a la vez el [OpenAPI](openapi.json) (esquema `bearerAuth` y respuestas 401/503) y este documento. El formato de eventos y alertas no cambia.
+El [OpenAPI](openapi.json) (esquema `bearerAuth` y respuestas 401/503) se actualiza en SEM-133, junto con la implementación. Hasta entonces sigue describiendo la API sin autenticación. El formato de eventos y alertas no cambia.
 
 ## Criterios verificables de integración
 
