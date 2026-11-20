@@ -22,9 +22,16 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "spring.datasource.url=jdbc:h2:mem:honeypot-scan-test;DB_CLOSE_DELAY=-1")
+        properties = {
+                "spring.datasource.url=jdbc:h2:mem:honeypot-scan-test;DB_CLOSE_DELAY=-1",
+                "honeypot.ftp.port=2122",
+                "honeypot.ssh.port=2223"
+        })
 @ActiveProfiles("dev")
 class DetectorEscaneoServiceTest {
+
+    private static final int FTP_PORT = 2122;
+    private static final int SSH_PORT = 2223;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -96,12 +103,13 @@ class DetectorEscaneoServiceTest {
         Process nmap;
         try {
             nmap = new ProcessBuilder(
-                    "nmap", "-sT", "-Pn", "-n", "--reason", "-p", "2121,2222", "127.0.0.1")
+                    "nmap", "-sT", "-Pn", "-n", "--reason", "-p",
+                    FTP_PORT + "," + SSH_PORT, "127.0.0.1")
                     .redirectErrorStream(true)
                     .start();
         } catch (IOException e) {
-            try (Socket ftp = new Socket("127.0.0.1", 2121);
-                    Socket ssh = new Socket("127.0.0.1", 2222)) {
+            try (Socket ftp = new Socket("127.0.0.1", FTP_PORT);
+                    Socket ssh = new Socket("127.0.0.1", SSH_PORT)) {
                 assertThat(ftp.isConnected()).isTrue();
                 assertThat(ssh.isConnected()).isTrue();
             }
@@ -115,6 +123,6 @@ class DetectorEscaneoServiceTest {
 
         String output = new String(nmap.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         assertThat(nmap.exitValue()).withFailMessage(output).isZero();
-        assertThat(output).contains("2121/tcp open", "2222/tcp open");
+        assertThat(output).contains(FTP_PORT + "/tcp open", SSH_PORT + "/tcp open");
     }
 }
