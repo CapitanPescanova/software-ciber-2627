@@ -31,7 +31,8 @@ class FtpEventServiceSiemTest {
         siem = Mockito.mock(SiemSenderService.class);
         when(siem.enviarEvento(anyString(), any())).thenReturn(200);
 
-        ftpEventService = new FtpEventService(repositorio, new EventoMapper(), siem, clasificador);
+        ftpEventService = new FtpEventService(
+                repositorio, new EventoMapper(), siem, clasificador, Mockito.mock(DetectorEscaneoService.class));
     }
 
     @Test
