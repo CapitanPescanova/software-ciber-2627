@@ -39,6 +39,32 @@ en un objeto JSON. Por ejemplo:
 {"timestamp":"Apr 20 13:51:02","service":"sshd","event_type":"failed_login","username":"root","source_ip":"122.5.240.60","source_port":54874}
 ```
 
+## CLI administrativo
+
+El CLI se ejecuta de forma independiente al proceso principal del IDS y utiliza
+`requests` para llamar a la API administrativa local.
+
+En local, desde `modules/02-ids/src`:
+
+```bash
+export IDS_ADMIN_TOKEN="token-local"
+python util/cli_manager.py
+```
+
+Con Docker, el CLI puede ejecutarse dentro del contenedor mientras el servicio
+IDS sigue funcionando:
+
+```bash
+docker exec -it <contenedor-ids> sh
+cd /ids/src
+export IDS_ADMIN_TOKEN="token-configurado-en-el-contenedor"
+python util/cli_manager.py
+```
+
+La variable `IDS_ADMIN_TOKEN` es opcional, pero cuando está definida debe
+enviarse como `Authorization: Bearer <token>` para acceder a `/admin/*`.
+Los endpoints administrativos aceptan únicamente conexiones desde localhost.
+
 ## Patrón P004 · Fuerza bruta
 
 Implementado en `src/patterns/brute_force.py`. Detecta una IP que acumula
