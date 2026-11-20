@@ -129,6 +129,17 @@ public class FtpHoneypot {
             extends DefaultFtpHandler {
 
         @Override
+        public void sessionCreated(FtpIoSession session) throws Exception {
+            InetSocketAddress clientAddress = session.getFtpletSession().getClientAddress();
+            try {
+                ftpEventService.registrarConexion(clientAddress.getAddress().getHostAddress());
+            } catch (RuntimeException e) {
+                log.error("No se pudo registrar la conexion al servicio FTP", e);
+            }
+            super.sessionCreated(session);
+        }
+
+        @Override
         public void messageReceived(FtpIoSession session, FtpRequest request)
                 throws Exception {
 
