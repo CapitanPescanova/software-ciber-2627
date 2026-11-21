@@ -21,7 +21,9 @@ def publish_events_to_siem(events, scan_id=None):
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
-
+    delivered = 0
+    errors = []
+    
     for event in events:
         sent_event_id = event.get("event_id")
         try:
@@ -32,6 +34,11 @@ def publish_events_to_siem(events, scan_id=None):
                 timeout=3,
             )
             if response.status_code != 200:
+                errors.append({
+                    "event_id": sent_event_id,
+                    "code": "http_error",
+                    "status_code": response.status_code,
+                })
                 logger.warning(
                     "Fallo al publicar evento en SIEM (scan_id=%s, event_id=%s, status=%s)",
                     scan_id,
@@ -43,6 +50,10 @@ def publish_events_to_siem(events, scan_id=None):
             try:
                 ack = response.json()
             except ValueError:
+                errors.append({
+                    "event_id": sent_event_id,
+                    "code": "invalid_json_ack",
+                })
                 logger.warning(
                     "Acuse del SIEM no es JSON válido (scan_id=%s, event_id=%s)",
                     scan_id,
@@ -51,6 +62,10 @@ def publish_events_to_siem(events, scan_id=None):
                 continue
 
             if not isinstance(ack, dict):
+                errors.append({
+                    "event_id": sent_event_id,
+                    "code": "invalid_ack",
+                })
                 logger.warning(
                     "Acuse del SIEM no es un objeto JSON "
                     "(scan_id=%s, event_id=%s)",
@@ -60,6 +75,10 @@ def publish_events_to_siem(events, scan_id=None):
                 continue
 
             if ack.get("status") != "success":
+                errors.append({
+                    "event_id": sent_event_id,
+                    "code": "invalid_ack_status",
+                })
                 logger.warning(
                     "Acuse del SIEM con status no válido "
                     "(scan_id=%s, event_id=%s, status=%s)",
@@ -75,6 +94,10 @@ def publish_events_to_siem(events, scan_id=None):
                 or not ack_event_id.strip()
                 or ack_event_id != sent_event_id
             ):
+                errors.append({
+                    "event_id": sent_event_id,
+                    "code": "event_id_mismatch",
+                })
                 logger.warning(
                     "Acuse del SIEM con event_id no coincidente "
                     "(scan_id=%s, event_id=%s, ack_event_id=%s)",
@@ -83,14 +106,40 @@ def publish_events_to_siem(events, scan_id=None):
                     ack_event_id,
                 )
                 continue
-
+                
+            delivered += 1
+        
         except requests.exceptions.RequestException as exc:
+            errors.append({
+                "event_id": sent_event_id,
+                "code": "connection_error",
+                "error_type": type(exc).__name__,
+            })
             logger.warning(
                 "Error de conexión o timeout al publicar evento en SIEM (scan_id=%s, event_id=%s, error=%s)",
                 scan_id,
                 sent_event_id,
                 type(exc).__name__,
             )
+
+    failed = len(errors)
+
+    if not events:
+        delivery_status = "not_required"
+    elif failed == 0:
+        delivery_status = "delivered"
+    elif delivered == 0:
+        delivery_status = "failed"
+    else:
+        delivery_status = "partial"
+
+    return {
+        "status": delivery_status,
+        "total": len(events),
+        "delivered": delivered,
+        "failed": failed,
+        "errors": errors,
+    }
 
 def _run_job_worker(scan_id, target, profile, xml_outfile):
     try:
@@ -122,8 +171,11 @@ def _run_job_worker(scan_id, target, profile, xml_outfile):
             raise RuntimeError("No se pudo leer el informe XML de Nmap") from error
         JOBS[scan_id]["events"] = parse_xml(xml_content, scan_id, profile)
 
+        JOBS[scan_id]["siem_delivery"] = publish_events_to_siem(
+            JOBS[scan_id]["events"],
+            scan_id=scan_id,
+        )
         JOBS[scan_id]["status"] = "completed"
-        publish_events_to_siem(JOBS[scan_id]["events"], scan_id=scan_id)
 
     except Exception as error:
         JOBS[scan_id]["status"] = "failed"
@@ -176,6 +228,8 @@ def public(job):
         "status": job["status"],
         "events": job.get("events", [])
     }
+    if "siem_delivery" in job:
+        result["siem_delivery"] = job["siem_delivery"]
     if job.get("status") == "failed":
         result["error"] = job.get("error", "El escaneo ha fallado")
     return result
