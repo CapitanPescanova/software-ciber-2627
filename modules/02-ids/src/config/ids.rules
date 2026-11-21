@@ -1,6 +1,7 @@
 # ==========================================
 # REGLAS DEL MOTOR
 # Formato: ID,UMBRAL,VENTANA_SEGUNDOS,ARGUMENTOS_EXTRA
+# Argumentos extra soportados: clave=valor separados por ';' (ej. usernames=3;enabled=false)
 # ==========================================
 P004,5,60,usernames=3
 P005,10,60
