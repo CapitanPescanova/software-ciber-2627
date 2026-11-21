@@ -50,12 +50,37 @@ def publish_events_to_siem(events, scan_id=None):
                 )
                 continue
 
-            if not isinstance(ack, dict) or ack.get("event_id") != sent_event_id:
+            if not isinstance(ack, dict):
                 logger.warning(
-                    "Acuse del SIEM con event_id no coincidente (scan_id=%s, event_id=%s, ack_event_id=%s)",
+                    "Acuse del SIEM no es un objeto JSON "
+                    "(scan_id=%s, event_id=%s)",
                     scan_id,
                     sent_event_id,
-                    ack.get("event_id") if isinstance(ack, dict) else None,
+                )
+                continue
+
+            if ack.get("status") != "success":
+                logger.warning(
+                    "Acuse del SIEM con status no válido "
+                    "(scan_id=%s, event_id=%s, status=%s)",
+                    scan_id,
+                    sent_event_id,
+                    ack.get("status"),
+                )
+                continue
+
+            ack_event_id = ack.get("event_id")
+            if (
+                not isinstance(ack_event_id, str)
+                or not ack_event_id.strip()
+                or ack_event_id != sent_event_id
+            ):
+                logger.warning(
+                    "Acuse del SIEM con event_id no coincidente "
+                    "(scan_id=%s, event_id=%s, ack_event_id=%s)",
+                    scan_id,
+                    sent_event_id,
+                    ack_event_id,
                 )
                 continue
 
