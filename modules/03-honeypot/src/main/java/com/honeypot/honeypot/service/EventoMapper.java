@@ -15,6 +15,39 @@ public class EventoMapper {
     private static final String SOURCE = "honeypot";
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_INSTANT;
 
+    /** Valores de severidad de la escala del contrato. */
+    public static final String SEVERIDAD_LOW = "low";
+    public static final String SEVERIDAD_MEDIUM = "medium";
+    public static final String SEVERIDAD_HIGH = "high";
+    public static final String SEVERIDAD_CRITICAL = "critical";
+
+    /** Severidad que se usa si el tipo de evento es null, está vacío o no se conoce. */
+    public static final String SEVERIDAD_POR_DEFECTO = SEVERIDAD_LOW;
+
+    /** Único sitio donde se decide qué severidad tiene cada tipo de evento (HP-26). */
+    private static final Map<String, String> SEVERIDAD_POR_TIPO = Map.of(
+            ClasificadorAtaquesService.CREDENCIALES_POR_DEFECTO, SEVERIDAD_HIGH,
+            ClasificadorAtaquesService.FUERZA_BRUTA, SEVERIDAD_MEDIUM,
+            ClasificadorAtaquesService.ESCANEO, SEVERIDAD_LOW,
+            // PROVISIONAL: pendiente de acordar con el grupo 5 (HP-102);
+            // contract/examples/intento_login.json usa "medium".
+            ClasificadorAtaquesService.INTENTO_LOGIN, SEVERIDAD_LOW
+    );
+
+    /**
+     * Devuelve la severidad que corresponde a un tipo de evento del contrato.
+     * Si el tipo es null, está vacío o no se conoce, devuelve {@link #SEVERIDAD_POR_DEFECTO}.
+     *
+     * @param eventType tipo de evento (por ejemplo "fuerza_bruta")
+     * @return severidad de la escala del contrato (low, medium, high o critical)
+     */
+    public static String severidadDe(String eventType) {
+        if (eventType == null || eventType.isBlank()) {
+            return SEVERIDAD_POR_DEFECTO;
+        }
+        return SEVERIDAD_POR_TIPO.getOrDefault(eventType, SEVERIDAD_POR_DEFECTO);
+    }
+
     /**
      * Crea el evento usando como event_type la etiqueta guardada en el intento (HP-77).
      */
