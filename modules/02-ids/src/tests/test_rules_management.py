@@ -45,6 +45,23 @@ class TestRulesManagement(unittest.TestCase):
         detections = rule.run(eventos) if rule.enabled else []
         self.assertEqual(detections, [])
 
+    def test_edit_rule_updates_values_and_preserves_extra_when_omitted(self):
+        self.manager.add_rule("P004", threshold=3, window=60, extra_args="usernames=2")
+
+        edited = self.manager.edit_rule("P004", threshold=7, window=120)
+        self.assertEqual(edited, "P004,7,120,usernames=2")
+
+        edited_with_extra = self.manager.edit_rule(
+            "P004", threshold=8, window=180, extra_args="usernames=4;enabled=true"
+        )
+        self.assertEqual(edited_with_extra, "P004,8,180,usernames=4;enabled=true")
+
+        with self.assertRaises(KeyError):
+            self.manager.edit_rule("P999", threshold=3, window=60)
+
+        with self.assertRaises(RuleValidationError):
+            self.manager.edit_rule("P004", threshold=0, window=60)
+
 
 if __name__ == "__main__":
     unittest.main()

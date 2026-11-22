@@ -125,6 +125,53 @@ class RuleManager:
         self._write_lines(lines)
         return formatted_line.strip()
 
+    def edit_rule(
+        self,
+        rule_id: str,
+        threshold: int | str,
+        window: int | str,
+        extra_args: Optional[str] = None,
+    ) -> str:
+        """Edita una regla existente validando sus campos."""
+        target_id = (rule_id or "").strip()
+        lines = self._read_lines()
+        updated = False
+        new_lines: List[str] = []
+        updated_line = ""
+
+        for raw_line in lines:
+            stripped = raw_line.strip()
+            if not stripped or stripped.startswith("#"):
+                new_lines.append(raw_line)
+                continue
+
+            parts = [p.strip() for p in stripped.split(",")]
+            if parts[0] != target_id:
+                new_lines.append(raw_line)
+                continue
+
+            previous_extra = parts[3] if len(parts) > 3 else ""
+            chosen_extra = previous_extra if extra_args is None else (extra_args or "")
+
+            validated = self.validate_rule(
+                rule_id=target_id,
+                threshold=threshold,
+                window=window,
+                extra_args=chosen_extra,
+                check_duplicate=False,
+            ).strip()
+
+            ending = "\n" if raw_line.endswith("\n") else ""
+            new_lines.append(f"{validated}{ending}")
+            updated = True
+            updated_line = validated
+
+        if not updated:
+            raise KeyError(f"No se encontró ninguna regla con ID '{target_id}' en {self.rules_path}")
+
+        self._write_lines(new_lines)
+        return updated_line
+
     def set_rule_enabled(self, rule_id: str, enabled: bool) -> str:
         """Marca una regla como activa o desactivada en ids.rules sin borrarla."""
         target_id = (rule_id or "").strip()
