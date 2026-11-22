@@ -5,16 +5,22 @@ logger = logging.getLogger(__name__)
 
 
 class PatternBase:
-    def __init__(self):
-        self.enabled = True
+    def __init__(self, enabled: bool | str = True):
+        if isinstance(enabled, str):
+            self.enabled = enabled.strip().lower() in ("1", "true", "yes", "on", "enabled")
+        else:
+            self.enabled = bool(enabled)
         # self.whitelist lo asigna el decorador @pattern (config["WHITELIST"])
         self.whitelist_networks = self._parse_whitelist(getattr(self, "whitelist", []))
 
-    def enable(self):
+    def enable(self) -> None:
         self.enabled = True
 
-    def disable(self):
+    def disable(self) -> None:
         self.enabled = False
+
+    def is_enabled(self) -> bool:
+        return bool(self.enabled)
 
     @staticmethod
     def _parse_whitelist(entries):
