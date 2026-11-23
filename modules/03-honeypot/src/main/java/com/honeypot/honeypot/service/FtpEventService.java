@@ -23,22 +23,30 @@ public class FtpEventService {
     private final EventoMapper eventoMapper;
     private final SiemSenderService siemSenderService;
     private final ClasificadorAtaquesService clasificadorAtaquesService;
+    private final DetectorEscaneoService detectorEscaneoService;
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
 
     public FtpEventService(
             LoginAttemptRepository loginAttemptRepository,
             EventoMapper eventoMapper,
             SiemSenderService siemSenderService,
-            ClasificadorAtaquesService clasificadorAtaquesService
+            ClasificadorAtaquesService clasificadorAtaquesService,
+            DetectorEscaneoService detectorEscaneoService
     ) {
         this.loginAttemptRepository = loginAttemptRepository;
         this.eventoMapper = eventoMapper;
         this.siemSenderService = siemSenderService;
         this.clasificadorAtaquesService = clasificadorAtaquesService;
+        this.detectorEscaneoService = detectorEscaneoService;
     }
 
     public void registrarComando(String sourceIp, String command, String argument) {
         registrarComando(sourceIp, command, argument, null);
+    }
+
+    public void registrarConexion(String sourceIp) {
+        detectorEscaneoService.registrarContacto(
+                truncate(sourceIp, 64), "ftp", Instant.now());
     }
 
     /**
