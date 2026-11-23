@@ -78,4 +78,22 @@ class EventoMapperTest {
 
         assertEquals("fuerza_bruta", evento.eventType());
     }
+
+    @Test
+    @DisplayName("HP-100: severidadDe devuelve la severidad de cada tipo del contrato")
+    void severidadDeCadaTipo() {
+        assertEquals("high", EventoMapper.severidadDe(ClasificadorAtaquesService.CREDENCIALES_POR_DEFECTO));
+        assertEquals("medium", EventoMapper.severidadDe(ClasificadorAtaquesService.FUERZA_BRUTA));
+        assertEquals("low", EventoMapper.severidadDe(ClasificadorAtaquesService.ESCANEO));
+        assertEquals("low", EventoMapper.severidadDe(ClasificadorAtaquesService.INTENTO_LOGIN));
+    }
+
+    @Test
+    @DisplayName("HP-100: un tipo null, vacío o desconocido devuelve la severidad por defecto")
+    void severidadDeTipoDesconocido() {
+        assertEquals(EventoMapper.SEVERIDAD_POR_DEFECTO, EventoMapper.severidadDe(null));
+        assertEquals(EventoMapper.SEVERIDAD_POR_DEFECTO, EventoMapper.severidadDe(" "));
+        assertEquals(EventoMapper.SEVERIDAD_POR_DEFECTO, EventoMapper.severidadDe("tipo_inventado"));
+    }
+
 }
