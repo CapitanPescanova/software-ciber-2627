@@ -115,7 +115,7 @@ function Count-Key($url, $key) {
 function Stop-Prueba {
     docker rm -f mock-soar mock-scanner *> $null
     Push-Location $Raiz
-    docker compose --env-file $EnvF -p $Proj down *> $null
+    docker compose --env-file $EnvF -p $Proj down -v *> $null
     Pop-Location
 }
 # Start-Mock NOMBRE IMAGEN CARPETA PUERTO -> construye (salvo con -s y si la imagen ya existe) y
@@ -158,7 +158,14 @@ try {
 
     # --- 2. Variables de entorno ------------------------------------------------
     # docker compose lee las URLs de los modulos de un fichero de variables. Partimos de .env.example.
-    Copy-Item (Join-Path $Raiz '.env.example') $EnvF
+    # El compose exige SIEM_DB_PASSWORD (contrasena de PostgreSQL del SIEM). Se usa la de la terminal si
+    # existe y, si no, una de usar y tirar que solo vive en esta copia temporal. Stop-Prueba borra los
+    # volumenes de este proyecto, asi que la base de datos no sobrevive con una contrasena ya desconocida.
+    $clave = $env:SIEM_DB_PASSWORD
+    if (-not $clave) { $clave = [guid]::NewGuid().ToString('N') }
+    $lineas = (Get-Content (Join-Path $Raiz '.env.example')) | Where-Object { $_ -notmatch '^SIEM_DB_PASSWORD=' }
+    $lineas += "SIEM_DB_PASSWORD=$clave"
+    [System.IO.File]::WriteAllText($EnvF, (($lineas -join "`n") + "`n"), (New-Object System.Text.UTF8Encoding($false)))
 
     # --- Modo -p: parar lo que dejo -m y salir ----------------------------------
     if ($Parar) {
