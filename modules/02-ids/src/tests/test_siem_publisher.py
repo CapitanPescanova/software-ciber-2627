@@ -5,6 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import requests
+
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from patterns.brute_force import BruteForce
@@ -36,7 +38,118 @@ class FakeSession:
         return self.responses.pop(0)
 
 
+class TimeoutSession:
+    def __init__(self):
+        self.calls = []
+
+    def post(self, url, json, timeout):
+        self.calls.append(copy.deepcopy(json))
+        raise requests.Timeout("SIEM timeout")
+
+
 class SiemPublisherTests(unittest.TestCase):
+    def setUp(self):
+        self.event = {
+            "event_id": "IDS-P005-203.0.113.9-20261123T105900Z",
+            "timestamp": "2026-11-23T11:00:20Z",
+            "source": "ids",
+            "event_type": "endpoint_scan",
+            "severity": "high",
+            "title": "Posible escaneo de endpoints",
+            "description": "Prueba",
+            "details": {"rule_id": "P005", "target_ips": ["10.0.0.1"]},
+        }
+
+    def test_409_is_permanent_reject_and_not_queued(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pending_path = Path(directory) / "pending_events.json"
+            session = FakeSession([
+                FakeResponse(
+                    status_code=409,
+                    text='{"code":"EVENT_ID_CONFLICT","message":"duplicate event"}',
+                )
+            ])
+
+            with self.assertLogs("util.siem_publisher", level="ERROR") as captured:
+                sent = publish_and_queue(
+                    self.event,
+                    siem_url="http://siem/events",
+                    session=session,
+                    pending_path=pending_path,
+                    retries=0,
+                    retry_delay=0,
+                )
+
+            self.assertFalse(sent)
+            self.assertEqual([], __import__("json").loads(
+                pending_path.read_text(encoding="utf-8")
+            ))
+            self.assertIn("Rechazo definitivo", "\n".join(captured.output))
+            self.assertIn("EVENT_ID_CONFLICT", "\n".join(captured.output))
+
+    def test_503_is_queued_with_original_event(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pending_path = Path(directory) / "pending_events.json"
+            session = FakeSession([
+                FakeResponse(status_code=503, text="not ready")
+            ])
+
+            sent = publish_and_queue(
+                self.event,
+                siem_url="http://siem/events",
+                session=session,
+                pending_path=pending_path,
+                retries=0,
+                retry_delay=0,
+            )
+
+            self.assertFalse(sent)
+            pending = __import__("json").loads(
+                pending_path.read_text(encoding="utf-8")
+            )
+            self.assertEqual([self.event], pending)
+
+    def test_timeout_is_queued_with_original_event(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pending_path = Path(directory) / "pending_events.json"
+            session = TimeoutSession()
+
+            sent = publish_and_queue(
+                self.event,
+                siem_url="http://siem/events",
+                session=session,
+                pending_path=pending_path,
+                retries=0,
+                retry_delay=0,
+            )
+
+            self.assertFalse(sent)
+            pending = __import__("json").loads(
+                pending_path.read_text(encoding="utf-8")
+            )
+            self.assertEqual([self.event], pending)
+            self.assertEqual([self.event], session.calls)
+
+    def test_200_is_sent_and_removed_from_queue(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pending_path = Path(directory) / "pending_events.json"
+            session = FakeSession([
+                FakeResponse(status_code=200, event_id=self.event["event_id"])
+            ])
+
+            sent = publish_and_queue(
+                self.event,
+                siem_url="http://siem/events",
+                session=session,
+                pending_path=pending_path,
+                retries=0,
+                retry_delay=0,
+            )
+
+            self.assertTrue(sent)
+            self.assertEqual([], __import__("json").loads(
+                pending_path.read_text(encoding="utf-8")
+            ))
     def test_p005_is_common_schema_compatible(self):
         rule = EndpointScan(threshold="3", window="60")
         events = [

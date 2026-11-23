@@ -17,6 +17,9 @@ configura con `SIEM_URL` y usa `http://siem:80/events` dentro de Docker Compose.
 Los fallos temporales se conservan en `output/pending_events.json`. Los reintentos
 envían una copia profunda del evento original; no regeneran el `event_id`, el
 `timestamp` ni el resto del contenido.
+Un HTTP `409 EVENT_ID_CONFLICT` se registra como rechazo definitivo y se elimina
+de la cola. Los timeouts, errores de conexión y respuestas `503` / `5xx` siguen
+siendo fallos temporales y conservan el evento original para reintentos.
 
 ## Qué consume
 Nada obligatorio (opcionalmente puede validar sesión de su panel de administración contra Identidad).
