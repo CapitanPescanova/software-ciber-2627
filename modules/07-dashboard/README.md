@@ -52,17 +52,17 @@ Los scripts parten de `.env.example`, cuyas claves van vacías. Con eso las comp
 
 Windows (PowerShell):
 ```powershell
-$env:JWT_SECRET_KEY = "clave-de-demo-solo-local-0123456789abcdef"
-$env:ADMIN_PASSWORD = "Demo-Admin-2026"
+$env:JWT_SECRET_KEY = "<clave secreta local>"
+$env:ADMIN_PASSWORD = "<contraseña de 8 a 128 caracteres>"
 ```
 Linux y macOS:
 ```bash
-export JWT_SECRET_KEY="clave-de-demo-solo-local-0123456789abcdef"
-export ADMIN_PASSWORD="Demo-Admin-2026"
+export JWT_SECRET_KEY="<clave secreta local>"
+export ADMIN_PASSWORD="<contraseña de 8 a 128 caracteres>"
 ```
 Después entra en `http://localhost:8007` con el usuario `admin` y esa contraseña.
 
-El SIEM arranca sin alertas y las guarda en memoria. Para ver la tabla con datos, envíale eventos de ejemplo (desde la raíz del clon; en Windows usa `curl.exe`):
+El SIEM del compose raíz guarda los eventos en PostgreSQL (perfil `persistence`), así que `POST /events` responde 200, y las alertas se mantienen en memoria: arranca sin ellas. Para ver la tabla con datos, envíale eventos de ejemplo (desde la raíz del clon; en Windows usa `curl.exe`):
 ```bash
 curl -i -H "Content-Type: application/json" --data-binary @modules/05-siem/contract/examples/grupo_3_honeypot.json http://localhost:8005/events
 curl -i -H "Content-Type: application/json" --data-binary @modules/05-siem/contract/examples/grupo_8_pentesting.json http://localhost:8005/events
