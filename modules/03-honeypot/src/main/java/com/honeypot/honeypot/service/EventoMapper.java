@@ -93,7 +93,7 @@ public class EventoMapper {
                 timestamp,
                 SOURCE,
                 "escaneo",
-                "high",
+                "low",
                 "Escaneo de puertos detectado en servicios señuelo",
                 "La IP " + ip + " ha conectado con varios puertos asociados a servicios señuelo en menos de "
                         + ventanaMinutos + " minutos.",
