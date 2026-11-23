@@ -9,6 +9,15 @@ Publica los eventos de seguridad que detecta hacia el SIEM.
 Además, la aplicación dispone de un endpoint para revisar su correcto funcionamiento
 - `GET /health`
 
+## Publicación al SIEM
+
+P004 y P005 se publican por HTTP en cuanto se cierra su detección. La URL se
+configura con `SIEM_URL` y usa `http://siem:80/events` dentro de Docker Compose.
+
+Los fallos temporales se conservan en `output/pending_events.json`. Los reintentos
+envían una copia profunda del evento original; no regeneran el `event_id`, el
+`timestamp` ni el resto del contenido.
+
 ## Qué consume
 Nada obligatorio (opcionalmente puede validar sesión de su panel de administración contra Identidad).
 

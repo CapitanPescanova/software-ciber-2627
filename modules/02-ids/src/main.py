@@ -16,6 +16,7 @@ from util.health import (
 from util.log_parser import parse_log_lines
 from util.log_storage import ParsedLogStorage
 from util.parsers import parse_rules
+from util.siem_publisher import publish_and_queue, retry_pending
 
 
 logger = logging.getLogger(__name__)
@@ -108,8 +109,11 @@ def _process_log_batch(log_path: Path, rules, storage):
 
             for deteccion in detecciones:
                 logger.info("ALERTA: %s", deteccion)
+                publish_and_queue(deteccion)
         else:
             logger.info("No se han detectado alertas.")
+
+        retry_pending()
 
         events_path = Path(__file__).resolve().parents[1] / "output"
         events_path.mkdir(parents=True, exist_ok=True)

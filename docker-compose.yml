@@ -27,6 +27,8 @@ services:
     build: ./modules/02-ids
     ports:
       - "8002:80"
+    environment:
+      SIEM_URL: "http://siem:80/events"
     networks:
       - ciberurjc
     healthcheck:
