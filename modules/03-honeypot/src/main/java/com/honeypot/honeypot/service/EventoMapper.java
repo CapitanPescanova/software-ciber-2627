@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Component
@@ -68,6 +69,34 @@ public class EventoMapper {
                 severity,
                 title,
                 description,
+                details
+        );
+    }
+
+    public EventoContrato mapearEventoEscaneo(
+            LoginAttempt attempt,
+            List<String> servicios,
+            long ventanaMinutos
+    ) {
+        String ip = attempt.getSourceIp() == null ? "" : attempt.getSourceIp();
+        String timestamp = attempt.getOccurredAt() == null
+                ? ""
+                : ISO_FORMATTER.format(attempt.getOccurredAt().truncatedTo(ChronoUnit.SECONDS));
+
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("source_ip", attempt.getSourceIp());
+        details.put("services", servicios);
+        details.put("window_minutes", ventanaMinutos);
+
+        return new EventoContrato(
+                attempt.getId() == null ? "HP-0" : "HP-" + attempt.getId(),
+                timestamp,
+                SOURCE,
+                "escaneo",
+                "low",
+                "Escaneo de puertos detectado en servicios señuelo",
+                "La IP " + ip + " ha conectado con varios puertos asociados a servicios señuelo en menos de "
+                        + ventanaMinutos + " minutos.",
                 details
         );
     }
