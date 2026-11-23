@@ -156,10 +156,20 @@ services:
     networks:
       - ciberurjc
     depends_on:
-      - identidad
-      - escaner
-      - siem
-      - soar
+      identidad:
+        condition: service_healthy
+      ids:
+        condition: service_healthy
+      honeypot:
+        condition: service_healthy
+      escaner:
+        condition: service_healthy
+      siem:
+        condition: service_healthy
+      soar:
+        condition: service_healthy
+      pentesting:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1/health"]
       interval: 10s
