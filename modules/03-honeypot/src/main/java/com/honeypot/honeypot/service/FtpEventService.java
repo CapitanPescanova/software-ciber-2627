@@ -45,8 +45,26 @@ public class FtpEventService {
     }
 
     public void registrarConexion(String sourceIp) {
-        detectorEscaneoService.registrarContacto(
-                truncate(sourceIp, 64), "ftp", Instant.now());
+        registrarConexion(sourceIp, null);
+    }
+
+    public void registrarConexion(String sourceIp, String claveSesion) {
+        String ip = truncate(sourceIp, 64);
+        Instant momento = Instant.now();
+        if (claveSesion == null) {
+            detectorEscaneoService.registrarContacto(ip, "ftp", momento);
+        } else {
+            detectorEscaneoService.registrarConexion(ip, "ftp", momento, claveSesion);
+        }
+    }
+
+    public void registrarCierreSinCredenciales(String sourceIp, String claveSesion) {
+        detectorEscaneoService.registrarCierreSinCredenciales(
+                truncate(sourceIp, 64), "ftp", Instant.now(), claveSesion);
+    }
+
+    public void marcarCredencial(String claveSesion) {
+        detectorEscaneoService.marcarCredencial(claveSesion);
     }
 
     /**

@@ -3,6 +3,8 @@ package com.honeypot.honeypot.ssh;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.apache.sshd.common.config.keys.KeyUtils;
+import org.apache.sshd.common.io.IoAcceptor;
+import org.apache.sshd.common.io.IoServiceEventListener;
 import org.apache.sshd.common.session.Session;
 import org.apache.sshd.common.session.SessionListener;
 import org.apache.sshd.core.CoreModuleProperties;
@@ -54,19 +56,46 @@ public class SshHoneypotServer {
         sshd.setPort(port);
         sshd.setKeyPairProvider(new SimpleGeneratorHostKeyProvider(Paths.get(hostKeyPath)));
         CoreModuleProperties.SERVER_IDENTIFICATION.set(sshd, serverVersion);
+        sshd.setIoServiceEventListener(new IoServiceEventListener() {
+            @Override
+            public void connectionAccepted(
+                    IoAcceptor acceptor,
+                    SocketAddress localAddress,
+                    SocketAddress remoteAddress,
+                    SocketAddress serviceAddress
+            ) {
+                if (remoteAddress instanceof InetSocketAddress inet
+                        && inet.getAddress() != null) {
+                    detectorEscaneoService.registrarContacto(
+                            inet.getAddress().getHostAddress(), "honeypot-ssh", Instant.now());
+                }
+            }
+        });
         sshd.addSessionListener(new SessionListener() {
             @Override
             public void sessionCreated(Session session) {
                 if (session instanceof ServerSession serverSession
                         && serverSession.getClientAddress() instanceof InetSocketAddress inet) {
-                    detectorEscaneoService.registrarContacto(
-                            inet.getAddress().getHostAddress(), "honeypot-ssh", Instant.now());
+                    detectorEscaneoService.registrarConexion(
+                            inet.getAddress().getHostAddress(), "honeypot-ssh", Instant.now(),
+                            claveSesion(serverSession));
+                }
+            }
+
+            @Override
+            public void sessionClosed(Session session) {
+                if (session instanceof ServerSession serverSession
+                        && serverSession.getClientAddress() instanceof InetSocketAddress inet) {
+                    detectorEscaneoService.registrarCierreSinCredenciales(
+                            inet.getAddress().getHostAddress(), "honeypot-ssh", Instant.now(),
+                            claveSesion(serverSession));
                 }
             }
         });
 
         // Contraseña (también cubre keyboard-interactive, que MINA delega aquí)
         sshd.setPasswordAuthenticator((username, password, session) -> {
+            detectorEscaneoService.marcarCredencial(claveSesion(session));
             notifyListeners(buildAttempt(session, username,
                     SshAttemptData.AuthMethod.PASSWORD, password, null));
             return false;
@@ -74,6 +103,7 @@ public class SshHoneypotServer {
 
         // Clave pública: se registra la huella y se rechaza
         sshd.setPublickeyAuthenticator((username, key, session) -> {
+            detectorEscaneoService.marcarCredencial(claveSesion(session));
             notifyListeners(buildAttempt(session, username,
                     SshAttemptData.AuthMethod.PUBLIC_KEY, null, KeyUtils.getFingerPrint(key)));
             return false;
@@ -81,6 +111,10 @@ public class SshHoneypotServer {
 
         sshd.start();
         log.info("Honeypot SSH escuchando en el puerto {}", port);
+    }
+
+    private static String claveSesion(Session session) {
+        return "ssh-" + System.identityHashCode(session);
     }
 
     private SshAttemptData buildAttempt(ServerSession session, String username,
