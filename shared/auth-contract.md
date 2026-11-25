@@ -112,15 +112,52 @@ Si vuestro módulo es una web que llama a esta API desde el navegador (como el D
 
 ## Secretos y cuentas de servicio
 
-- Cada módulo tiene su cuenta. Cada módulo sólo lee sus secretos. Todo secreto tiene un módulo dueño. Pedir un secreto de otro módulo devuelve error `403`.
+Cada módulo tiene su cuenta con rol `servicio` y solo lee sus secretos. Todo secreto tiene un módulo dueño: pedir el de otro módulo devuelve `403`. Las cuentas están en la tabla de [Roles](#roles).
 
-  | Secreto | Variable de entorno | Cuenta dueña |
-  |---|---|---|
-  | `siem_db_password` | `SECRET_SIEM_DB_PASSWORD` | `svc-siem` |
-  | `db_password`, `api_key`, `jwt_secret` (demostración) | `SECRET_DB_PASSWORD`, `SECRET_API_KEY`, `SECRET_JWT_SECRET` | `servicio` (transitoria) |
+| Secreto | Variable de entorno | Cuenta dueña |
+|---|---|---|
+| `siem_db_password` | `SECRET_SIEM_DB_PASSWORD` | `svc-siem` |
+| `db_password`, `api_key`, `jwt_secret` (demostración) | `SECRET_DB_PASSWORD`, `SECRET_API_KEY`, `SECRET_JWT_SECRET` | `servicio` (transitoria) |
 
-  ¿Vuestro módulo necesita un secreto nuevo? Pedidlo al equipo 01: se añade con su variable y su cuenta dueña en una versión nueva del contrato.
- **Pedid las credenciales por Teams al equipo 01** y guardadlas en variables de entorno o en un `.env` ignorado por Git. **El repositorio es público: no subáis credenciales reales.**
+**El repositorio es público: no subáis nunca contraseñas ni valores de secretos.** Van en variables de entorno o en un `.env` (ignorado por Git).
+
+### Cómo pedir una cuenta de servicio
+
+1. Escribid al equipo 01 por Teams indicando el módulo. Si vuestra cuenta ya está en la tabla de Roles, solo os falta la contraseña.
+2. El equipo 01 os pasa la contraseña de vuestra cuenta **por mensaje privado**, nunca en un canal público ni en el repositorio.
+3. Guardadla en vuestro `.env` con la variable de la tabla de Roles (por ejemplo `SERVICE_PASSWORD_SIEM=...`). Identidad crea la cuenta al arrancar si la variable existe.
+4. ¿Vuestro módulo es nuevo o no aparece en la tabla? Pedidlo al equipo 01: se añade la cuenta y su variable en una versión nueva del contrato.
+
+### Cómo pedir un secreto nuevo
+
+Indicad al equipo 01 la clave (`^[A-Za-z0-9_.-]{1,100}$`) y la cuenta dueña. Se añade con su variable `SECRET_<CLAVE>` y su dueño en una versión nueva del contrato. El **valor** se entrega por mensaje privado a quien despliega (`.env`), nunca en el repositorio.
+
+### Cómo leer un secreto desde vuestro módulo
+
+1. Iniciad sesión con vuestra cuenta de servicio y guardad el token:
+
+   ```
+   curl -X POST http://localhost:8001/auth/login -H "Content-Type: application/json" -d "{\"username\": \"svc-siem\", \"password\": \"<contraseña de vuestro .env>\"}"
+   ```
+
+2. Pedid el secreto con ese token:
+
+   ```
+   curl http://localhost:8001/secrets/siem_db_password -H "Authorization: Bearer <jwt>"
+   ```
+
+   Respuesta `200`: `{ "clave": "siem_db_password", "valor": "<valor descifrado>" }`, con `Cache-Control: no-store`.
+
+3. Usad el valor en memoria. No lo escribáis en logs, ficheros ni respuestas.
+
+| Código | Qué significa | Qué hacer |
+|---|---|---|
+| `401` | Token ausente, caducado (30 min) o revocado | Volved a hacer login |
+| `403` | La cuenta no es `servicio` o el secreto es de otro módulo | Revisad que usáis vuestra cuenta |
+| `404` | El secreto no está cargado | Falta su variable `SECRET_*` en el `.env` de Identidad; avisad al equipo 01 |
+| `500` | Falta `AES_KEY` o `JWT_SECRET_KEY` en Identidad | Avisad al equipo 01 |
+
+Dentro del compose usad `http://identidad:80` en lugar de `http://localhost:8001`. En Windows PowerShell, `curl.exe`.
 
 ## Mock para programar sin esperarnos
 
