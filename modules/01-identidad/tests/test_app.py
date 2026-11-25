@@ -134,6 +134,64 @@ class TestToken(BaseTest):  # AAA-19
             self.assertNotIn(fragmento, codigo)
  
  
+class TestSinSecretosEnElRepositorio(unittest.TestCase):  # AAA-114: ningún valor llega al repositorio
+    RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
+    def leer(self, nombre):
+        ruta = os.path.join(self.RAIZ, nombre)
+        if not os.path.exists(ruta):
+            self.skipTest(f"{nombre} no está en esta copia del repositorio")
+        with open(ruta, encoding="utf-8") as f:
+            return f.read()
+
+    def variables_sensibles(self):
+        return {"JWT_SECRET_KEY", "AES_KEY"} | {c[3] for c in app_module.CUENTAS} | {s[1] for s in app_module.SECRETOS}
+
+    def test_1_el_env_esta_ignorado_por_git(self):
+        lineas = [l.strip() for l in self.leer(".gitignore").splitlines()]
+        self.assertIn(".env", lineas)
+
+    def test_2_env_example_documenta_todas_las_variables_y_sin_valor(self):
+        valores = {}
+        for linea in self.leer(".env.example").splitlines():
+            linea = linea.strip()
+            if linea and not linea.startswith("#") and "=" in linea:
+                nombre, valor = linea.split("=", 1)
+                valores[nombre.strip()] = valor.strip()
+        for variable in self.variables_sensibles():
+            with self.subTest(variable=variable):
+                self.assertIn(variable, valores)
+                self.assertEqual(valores[variable], "", "el ejemplo no debe llevar valores reales")
+
+    def test_3_el_compose_solo_pasa_variables_sin_valores_escritos(self):
+        compose = self.leer("docker-compose.yml")
+        for variable in self.variables_sensibles():
+            for linea in compose.splitlines():
+                if linea.strip().startswith(variable + ":"):
+                    with self.subTest(variable=variable):
+                        valor = linea.split(":", 1)[1].strip()
+                        self.assertTrue(valor.startswith("${") and valor.endswith("}"), linea.strip())
+
+    def test_4_ningun_valor_sembrado_aparece_en_la_base_de_datos_en_claro(self):
+        valores = {s[1]: secrets.token_hex(12) for s in app_module.SECRETOS}
+        os.environ.update(valores)
+        app.config["AES_KEY"] = os.urandom(32)
+        try:
+            with app.app_context():
+                db.drop_all()
+                db.create_all()
+                app_module.seed()
+                filas = Secret.query.all()
+                self.assertEqual(len(filas), len(valores))
+                for fila in filas:
+                    guardado = fila.valor_encriptado + fila.iv + fila.tag
+                    for valor in valores.values():
+                        self.assertNotIn(valor, guardado)
+        finally:
+            for variable in valores:
+                os.environ.pop(variable, None)
+
+
 class TestRegistro(BaseTest):  # AAA-18
     def test_1_registro_valido_201_con_token_y_user_sin_password(self):
         r = self.registrar()
@@ -821,7 +879,7 @@ class TestAlmacenamientoCifrado(BaseTest):  # AAA-75
         valor = secrets.token_hex(8)
         os.environ["SECRET_API_KEY"] = valor
         clave_servicio = secrets.token_hex(8)
-        os.environ["SERVICE_PASSWORD"] = clave_servicio
+        os.environ["SERVICE_PASSWORD"] = clave_servicio  # api_key es de la cuenta "servicio" (1.4.0)
         with app.app_context():
             app_module.seed()
         token = self.login(username="servicio", password=clave_servicio).get_json()["token"]

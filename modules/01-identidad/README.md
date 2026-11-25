@@ -139,6 +139,18 @@ Los valores sensibles se leen de **variables de entorno**, nunca del código. El
 | `IDS_REINTENTOS` | `0` desactiva el hilo de reintentos (solo para pruebas) |
 | `TRUSTED_PROXY_HOPS`, `JWT_EXPIRES_SECONDS`, `DATABASE_URL` | Opcionales |
 
+### Cargar las cuentas y los secretos
+
+Las contraseñas y los valores de los secretos **nunca** se escriben en el código, el compose ni el repositorio:
+
+1. Copiad `.env.example` a `.env` en la raíz del monorepo (`.env` está en `.gitignore`).
+2. Rellenad `JWT_SECRET_KEY`, `AES_KEY` y, para cada cuenta o secreto que haga falta, su `SERVICE_PASSWORD_*` o `SECRET_*`. Generad valores aleatorios, por ejemplo con `python -c "import secrets; print(secrets.token_urlsafe(24))"`; para `AES_KEY`, `python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())"`.
+3. Arrancad con `docker compose up --build`. Al iniciar, Identidad crea las cuentas y guarda cada secreto **cifrado con AES-256-GCM** en la base de datos, con su cuenta dueña. Una variable vacía no crea nada.
+4. Comprobad que funciona haciendo login con la cuenta y leyendo su secreto (ver [`shared/auth-contract.md`](../../shared/auth-contract.md#cómo-leer-un-secreto-desde-vuestro-módulo)).
+5. Entregad cada contraseña de cuenta a su módulo **por mensaje privado**.
+
+Cómo piden los demás módulos su cuenta y leen sus secretos: [`shared/auth-contract.md`, sección «Secretos y cuentas de servicio»](../../shared/auth-contract.md#secretos-y-cuentas-de-servicio).
+
 ## Pruebas
 
 El módulo dispone de pruebas automáticas para comprobar el funcionamiento de los endpoints y la lógica del servicio de identidad.
@@ -162,4 +174,4 @@ Antes de fusionar un Pull Request, el CI debe finalizar correctamente. Si alguna
 
 ## Equipo
 
-CypherGate: Natalia (Product Owner), Omar (Scrum Master), Ainoa, Nerea, Jaime y Diego (equipo de desarrollo). Seguimiento en Jira, proyecto **AAA**.
+CypherGate: Diego (Product Owner), Ainoa (Scrum Master), Omar, Nerea, Jaime y Natalia (equipo de desarrollo). Seguimiento en Jira, proyecto **AAA**.
