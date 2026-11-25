@@ -104,6 +104,9 @@ hay que corregir el payload para que la cola avance.
 
 ## Historial
 
+- **1.4.0**: una cuenta de rol `servicio` por módulo (`svc-ids`, `svc-honeypot`, `svc-escaner`, `svc-pentesting`, `svc-soar`, `svc-siem`), creada desde su variable `SERVICE_PASSWORD_<MÓDULO>`; esos nombres están reservados en el registro (`409`). Todo secreto tiene una cuenta dueña: pedir el de otro módulo devuelve `403` y se registra `secret_denied`. Nuevo secreto `siem_db_password` (dueño `svc-siem`). La cuenta compartida `servicio` pasa a ser transitoria. **Cambio no compatible** para quien lea un secreto que no es suyo.
+- **1.3.2**: aclaraciones sin cambios de comportamiento (`404` de `/secrets` registra `secret_denied`, caducidad configurable, 5.º fallo ya da `429`, lotes de 200, `IDS_REINTENTOS`).
+- **1.3.1**: se documentan CORS, variables de entorno, envío al IDS y auditoría de `/secrets`.
 - **1.3.0**: se retiran `GET /audit` (nunca se implementó) y `GET /logs` (existía en el código; no lo usa ningún módulo); se documenta el envío de logs al IDS; se documentan el `429` del login y el evento `limit_exceeded`; CORS también en validate y logout.
 - **1.2.0**: se añade `POST /auth/logout`.
 - **1.1.0**: se añade `GET /audit` (retirado en 1.3.0).

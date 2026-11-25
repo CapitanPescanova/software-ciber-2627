@@ -8,7 +8,7 @@ Servicio transversal del que dependen los otros 7 módulos: **autenticación, ro
 
 | Elemento | Estado |
 |---|---|
-| Contrato de la API (`contract/openapi.yaml`) | Publicado, v1.3.0 |
+| Contrato de la API (`contract/openapi.yaml`) | Publicado, v1.4.0 |
 | Resumen para los demás equipos (`shared/auth-contract.md`) | Publicado |
 | `POST /auth/register` y `POST /auth/login` (JWT HS256, 30 min) | Implementados |
 | Límite de intentos de login (5 fallos en 15 min por usuario e IP; `429` con `Retry-After`) | Implementado |
@@ -129,8 +129,11 @@ Los valores sensibles se leen de **variables de entorno**, nunca del código. El
 |---|---|
 | `JWT_SECRET_KEY` | Clave de firma del JWT (HS256). Obligatoria para login, registro, validate y secretos |
 | `AES_KEY` | Clave AES-256 en base64 de 32 bytes. Obligatoria para `/secrets` |
-| `ADMIN_PASSWORD`, `SERVICE_PASSWORD` | Si existen, se crean las cuentas `admin` y `servicio` |
-| `SECRET_DB_PASSWORD`, `SECRET_API_KEY`, `SECRET_JWT_SECRET` | Si existen, se guardan cifrados como secretos de demostración |
+| `ADMIN_PASSWORD` | Si existe, se crea la cuenta `admin` |
+| `SERVICE_PASSWORD` | **Transitoria.** Si existe, se crea la cuenta compartida `servicio` (la usan hoy IDS y el CI del SIEM) |
+| `SERVICE_PASSWORD_IDS`, `_HONEYPOT`, `_ESCANER`, `_PENTESTING`, `_SOAR`, `_SIEM` | Si existen, se crean las cuentas de rol `servicio` `svc-ids`, `svc-honeypot`, `svc-escaner`, `svc-pentesting`, `svc-soar` y `svc-siem`. Esos nombres no se pueden registrar (`409`) |
+| `SECRET_SIEM_DB_PASSWORD` | Si existe, se guarda cifrado como secreto `siem_db_password`; solo lo lee `svc-siem` |
+| `SECRET_DB_PASSWORD`, `SECRET_API_KEY`, `SECRET_JWT_SECRET` | Si existen, se guardan cifrados como secretos de demostración; solo los lee `servicio` |
 | `IDS_URL` | Destino del envío de logs (por defecto `http://ids/logs`) |
 | `IDS_RETRY_SECONDS` | Espera base entre reintentos al IDS (por defecto 30 s, con tope de 300 s) |
 | `IDS_REINTENTOS` | `0` desactiva el hilo de reintentos (solo para pruebas) |

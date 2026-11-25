@@ -19,7 +19,9 @@ sys.path.insert(0, SRC)
 os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(tempfile.gettempdir(), "identidad_tests.db").replace("\\", "/")
 VARIABLES = (
     "JWT_SECRET_KEY", "AES_KEY", "JWT_EXPIRES_SECONDS", "ADMIN_PASSWORD", "SERVICE_PASSWORD",
-    "SECRET_DB_PASSWORD", "SECRET_API_KEY", "SECRET_JWT_SECRET",
+    "SERVICE_PASSWORD_IDS", "SERVICE_PASSWORD_HONEYPOT", "SERVICE_PASSWORD_ESCANER",
+    "SERVICE_PASSWORD_PENTESTING", "SERVICE_PASSWORD_SOAR", "SERVICE_PASSWORD_SIEM",
+    "SECRET_DB_PASSWORD", "SECRET_API_KEY", "SECRET_JWT_SECRET", "SECRET_SIEM_DB_PASSWORD",
 )
 for _var in VARIABLES:
     os.environ.pop(_var, None)
@@ -57,7 +59,7 @@ class BaseTest(unittest.TestCase):
         self.patcher.stop()
         with app.app_context():
             db.session.remove()
-        for var in ("ADMIN_PASSWORD", "SERVICE_PASSWORD", "SECRET_API_KEY"):
+        for var in VARIABLES[3:]:  # cuentas y secretos sembrados desde el entorno
             os.environ.pop(var, None)
  
     def registrar(self, **cambios):
@@ -365,7 +367,7 @@ class TestSecretos(BaseTest):  # adelanta AAA-15/16
         super().setUp()
         enc, iv, tag = encrypt(self.VALOR, self.aes_key)
         with app.app_context():
-            db.session.add(Secret(clave="api_key", valor_encriptado=enc, iv=iv, tag=tag))
+            db.session.add(Secret(clave="api_key", valor_encriptado=enc, iv=iv, tag=tag, dueno="cuenta.servicio"))
             db.session.commit()
         self.crear_usuario("cuenta.servicio", "servicio")
         self.crear_usuario("cuenta.admin", "admin")
@@ -430,6 +432,62 @@ class TestCuentasPrecargadas(BaseTest):
         self.assertEqual(self.contar_usuarios(), 0)
         self.assertEqual(self.login(username="admin", password="lo-que-sea").status_code, 401)
  
+    def test_cada_cuenta_svc_se_crea_solo_con_su_variable_y_con_rol_servicio(self):  # AAA-113
+        cuentas = {"svc-ids": "SERVICE_PASSWORD_IDS", "svc-honeypot": "SERVICE_PASSWORD_HONEYPOT",
+                   "svc-escaner": "SERVICE_PASSWORD_ESCANER", "svc-pentesting": "SERVICE_PASSWORD_PENTESTING",
+                   "svc-soar": "SERVICE_PASSWORD_SOAR", "svc-siem": "SERVICE_PASSWORD_SIEM"}
+        claves = {}
+        for usuario, variable in cuentas.items():
+            claves[usuario] = secrets.token_hex(8)
+            os.environ[variable] = claves[usuario]
+        self.sembrar()
+        self.assertEqual(self.contar_usuarios(), len(cuentas))
+        for usuario, clave in claves.items():
+            r = self.login(username=usuario, password=clave)
+            self.assertEqual(r.status_code, 200, usuario)
+            self.assertEqual(r.get_json()["user"]["role"], "servicio", usuario)
+
+    def test_una_cuenta_svc_no_se_crea_si_falta_su_variable(self):  # AAA-113
+        os.environ["SERVICE_PASSWORD_IDS"] = secrets.token_hex(8)
+        self.sembrar()
+        self.assertEqual(self.contar_usuarios(), 1)
+        self.assertEqual(self.login(username="svc-soar", password="lo-que-sea").status_code, 401)
+
+    def test_las_cuentas_svc_no_aceptan_la_contrasena_de_otra(self):  # AAA-113
+        os.environ["SERVICE_PASSWORD_IDS"] = secrets.token_hex(8)
+        os.environ["SERVICE_PASSWORD_SOAR"] = secrets.token_hex(8)
+        self.sembrar()
+        r = self.login(username="svc-ids", password=os.environ["SERVICE_PASSWORD_SOAR"])
+        self.assertEqual(r.status_code, 401)
+
+    def test_no_se_puede_registrar_un_usuario_reservado(self):  # AAA-113
+        for nombre in ("admin", "servicio", "svc-ids", "SVC-SIEM"):
+            r = self.client.post("/auth/register", json={
+                "username": nombre, "email": f"{secrets.token_hex(4)}@example.com",
+                "password": secrets.token_hex(8)})
+            self.assertEqual(r.status_code, 409, nombre)
+        r = self.client.post("/auth/register", json={
+            "username": "otro", "email": "svc-ids@ciberurjc.local", "password": secrets.token_hex(8)})
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(self.contar_usuarios(), 0)
+
+    def test_siem_db_password_se_siembra_con_dueno_svc_siem(self):  # contrato 1.4.0
+        valor = secrets.token_hex(8)
+        os.environ["SECRET_SIEM_DB_PASSWORD"] = valor
+        os.environ["SECRET_API_KEY"] = secrets.token_hex(8)
+        self.sembrar()
+        with app.app_context():
+            guardado = Secret.query.filter_by(clave="siem_db_password").first()
+            self.assertIsNotNone(guardado)
+            self.assertEqual(guardado.dueno, "svc-siem")
+            self.assertNotIn(valor, guardado.valor_encriptado)
+            self.assertEqual(Secret.query.filter_by(clave="api_key").first().dueno, "servicio")
+
+    def test_todos_los_secretos_sembrados_tienen_dueno_y_es_una_cuenta_sembrada(self):  # contrato 1.4.0
+        cuentas = {c[0] for c in app_module.CUENTAS}
+        for clave, _variable, dueno in app_module.SECRETOS:
+            self.assertIn(dueno, cuentas, clave)
+
     def test_los_secretos_de_demostracion_solo_salen_del_entorno_y_van_cifrados(self):
         valor = secrets.token_hex(8)
         os.environ["SECRET_API_KEY"] = valor
@@ -441,6 +499,57 @@ class TestCuentasPrecargadas(BaseTest):
             self.assertEqual(Secret.query.count(), 1)  # solo el definido por entorno
 
     
+class TestSecretosPorModulo(BaseTest):  # contrato 1.4.0: cada cuenta solo lee los secretos de su módulo
+    def setUp(self):
+        super().setUp()
+        self.claves = {"svc-siem": secrets.token_hex(8), "svc-ids": secrets.token_hex(8)}
+        os.environ["SERVICE_PASSWORD_SIEM"] = self.claves["svc-siem"]
+        os.environ["SERVICE_PASSWORD_IDS"] = self.claves["svc-ids"]
+        self.valor = secrets.token_hex(12)
+        os.environ["SECRET_SIEM_DB_PASSWORD"] = self.valor
+        with app.app_context():
+            app_module.seed()
+
+    def leer(self, usuario, clave="siem_db_password"):
+        token = self.login(username=usuario, password=self.claves[usuario]).get_json()["token"]
+        return self.client.get(f"/secrets/{clave}", headers=self.con_token(token))
+
+    def test_1_el_dueno_lee_su_secreto(self):
+        r = self.leer("svc-siem")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json()["valor"], self.valor)
+
+    def test_2_otra_cuenta_servicio_recibe_403_sin_el_valor(self):
+        r = self.leer("svc-ids")
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("error", r.get_json())
+        self.assertNotIn(self.valor, r.get_data(as_text=True))
+
+    def test_3_el_403_por_modulo_se_registra_como_secret_denied(self):
+        self.leer("svc-ids")
+        with app.app_context():
+            ultimo = app_module.AuditLog.query.order_by(app_module.AuditLog.id.desc()).first()
+            self.assertEqual(ultimo.event_type, "secret_denied")
+            self.assertEqual(ultimo.username, "svc-ids")
+            self.assertEqual(ultimo.clave, "siem_db_password")
+
+    def test_4_un_secreto_sin_dueno_no_lo_lee_nadie(self):
+        enc, iv, tag = encrypt("sin-dueno", self.aes_key)
+        with app.app_context():
+            db.session.add(Secret(clave="huerfano", valor_encriptado=enc, iv=iv, tag=tag))
+            db.session.commit()
+        for usuario in self.claves:
+            with self.subTest(usuario=usuario):
+                self.assertEqual(self.leer(usuario, "huerfano").status_code, 403)
+
+    def test_5_una_base_anterior_recibe_el_dueno_al_sembrar(self):
+        with app.app_context():
+            Secret.query.filter_by(clave="siem_db_password").first().dueno = None
+            db.session.commit()
+            app_module.seed()
+        self.assertEqual(self.leer("svc-siem").status_code, 200)
+
+
 class TestLogout(BaseTest):  # AAA-62
     def setUp(self):
         super().setUp()
@@ -597,7 +706,7 @@ class TestMinimoPrivilegio(BaseTest):  # AAA-25
         super().setUp()
         enc, iv, tag = encrypt(self.VALOR, self.aes_key)
         with app.app_context():
-            db.session.add(Secret(clave="api_key", valor_encriptado=enc, iv=iv, tag=tag))
+            db.session.add(Secret(clave="api_key", valor_encriptado=enc, iv=iv, tag=tag, dueno="cuenta.servicio"))
             db.session.commit()
         for nombre, rol in (("cuenta.servicio", "servicio"), ("cuenta.admin", "admin"), ("cuenta.analista", "analista")):
             self.crear_usuario(nombre, rol)
@@ -662,7 +771,7 @@ class TestAlmacenamientoCifrado(BaseTest):  # AAA-75
     def guardar(self, clave="api_key", valor=None):
         enc, iv, tag = encrypt(valor or self.VALOR, self.aes_key)
         with app.app_context():
-            db.session.add(Secret(clave=clave, valor_encriptado=enc, iv=iv, tag=tag))
+            db.session.add(Secret(clave=clave, valor_encriptado=enc, iv=iv, tag=tag, dueno="cuenta.servicio"))
             db.session.commit()
         return enc, iv, tag
 
@@ -711,9 +820,12 @@ class TestAlmacenamientoCifrado(BaseTest):  # AAA-75
     def test_6_los_secretos_sembrados_desde_el_entorno_se_leen_descifrados(self):
         valor = secrets.token_hex(8)
         os.environ["SECRET_API_KEY"] = valor
+        clave_servicio = secrets.token_hex(8)
+        os.environ["SERVICE_PASSWORD"] = clave_servicio
         with app.app_context():
             app_module.seed()
-        r = self.leer_como_servicio()
+        token = self.login(username="servicio", password=clave_servicio).get_json()["token"]
+        r = self.client.get("/secrets/api_key", headers=self.con_token(token))
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.get_json()["valor"], valor)
         with app.app_context():
