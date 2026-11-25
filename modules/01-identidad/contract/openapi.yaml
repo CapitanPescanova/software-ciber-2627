@@ -173,7 +173,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '409':
-          description: El usuario o el email ya existen
+          description: >
+            El usuario o el email ya existen, o son de una cuenta reservada (`admin`, `servicio`,
+            `svc-ids`, `svc-honeypot`, `svc-escaner`, `svc-pentesting`, `svc-soar`, `svc-siem` o sus emails),
+            aunque esa cuenta aún no se haya creado.
           content:
             application/json:
               schema:

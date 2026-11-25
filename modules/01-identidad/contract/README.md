@@ -17,11 +17,11 @@ Resumen para los demás módulos: [`shared/auth-contract.md`](../../../shared/au
 | Método y ruta | Quién lo usa | Descripción |
 |---|---|---|
 | `GET /health` | CI y docker-compose | Estado del servicio (200) |
-| `POST /auth/register` | Usuarios | Alta de usuario con rol `analista`; devuelve JWT |
+| `POST /auth/register` | Usuarios | Alta de usuario con rol `analista`; devuelve JWT (`409` con nombres reservados `admin`, `servicio`, `svc-*`) |
 | `POST /auth/login` | Usuarios | Login; devuelve JWT (`429` tras 5 fallos seguidos) |
 | `POST /auth/logout` | Usuarios | Revoca el token actual |
 | `GET /auth/validate` | Los otros 7 módulos | Valida un token y devuelve usuario y rol |
-| `GET /secrets/{clave}` | Solo rol `servicio` | Devuelve un secreto descifrado |
+| `GET /secrets/{clave}` | La cuenta de servicio dueña del secreto | Devuelve un secreto descifrado (`403` si es de otro módulo) |
 
 ## Cómo verlo, comprobarlo y probarlo
 

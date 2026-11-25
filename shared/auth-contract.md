@@ -1,6 +1,6 @@
 # Contrato de autenticación (Identidad y secretos)
 
-El equipo `equipo-01-identidad` publica aquí, en el Sprint 1, el contrato de los endpoints que expone.
+El equipo `equipo-01-identidad` publica aquí el contrato de los endpoints que expone.
 La fuente de verdad es [`modules/01-identidad/contract/openapi.yaml`](../modules/01-identidad/contract/openapi.yaml)
 (versión 1.4.0); si este resumen y el YAML difieren, manda el YAML. Los cambios se hacen por Pull Request
 y se avisan por Teams a los equipos que usen el endpoint.
@@ -8,7 +8,7 @@ y se avisan por Teams a los equipos que usen el endpoint.
 Servicio en local con `docker compose up`: `http://localhost:8001` (puerto interno `80` dentro del compose).
 
 **Historial.** 
-1.4.0: una cuenta de servicio por módulo; pedir un secreto de otro módulo devuelve `403` y se registra `secret_denied`. 1.3.2: se documenta que el `404` de `/secrets` registra `secret_denied`, que la caducidad del JWT es configurable, que el 5.º fallo de login ya devuelve `429`, el envío al IDS en lotes de hasta 200 y el valor de `IDS_REINTENTOS`. 1.3.1: se documentan CORS, variables de entorno, el envío de logs al IDS y la auditoría de `/secrets`. 1.3.0: se retiran `GET /audit` (nunca se implementó) y `GET /logs` (existía en el código); ningún módulo los usa; se documentan el `429` del login y el evento `limit_exceeded`; CORS también en `GET /auth/validate` y `POST /auth/logout`. 1.2.0: se añade `POST /auth/logout` (cierre de sesión). 1.1.0: se añade `GET /audit` (registro de auditoría, solo `admin`). Ambos son cambios compatibles: no modifican los endpoints existentes. 27/10: se documenta CORS para el Dashboard (sin cambios en los endpoints).
+1.4.0: una cuenta de servicio por módulo; pedir un secreto de otro módulo devuelve `403` y se registra `secret_denied`. 1.3.2: se documenta que el `404` de `/secrets` registra `secret_denied`, que la caducidad del JWT es configurable, que el 5.º fallo de login ya devuelve `429`, el envío al IDS en lotes de hasta 200 y el valor de `IDS_REINTENTOS`. 1.3.1: se documentan CORS, variables de entorno, el envío de logs al IDS y la auditoría de `/secrets`. 1.3.0: se retiran `GET /audit` (nunca se implementó) y `GET /logs` (existía en el código); ningún módulo los usa; se documentan el `429` del login y el evento `limit_exceeded`; CORS también en `GET /auth/validate` y `POST /auth/logout`. 1.2.0: se añade `POST /auth/logout` (cierre de sesión). 1.1.0: se añade `GET /audit` (registro de auditoría, solo `admin`). Todos son compatibles salvo 1.4.0, que deniega con `403` leer un secreto de otro módulo. 27/10: se documenta CORS para el Dashboard (sin cambios en los endpoints).
 
 ## Endpoints
 
@@ -43,7 +43,7 @@ Servicio en local con `docker compose up`: `http://localhost:8001` (puerto inter
 - **Lo usan los 7 módulos restantes** para comprobar sesión y rol. No decodifiquéis el token por vuestra cuenta: llamad a este endpoint.
 
 ### `GET /secrets/{clave}`
-- **Request:** cabecera `Authorization: Bearer <jwt de servicio>` y la clave en la ruta.
+- **Request:** cabecera `Authorization: Bearer <jwt>` de la cuenta de servicio dueña del secreto y la clave en la ruta.
 - **Response `200`:**
   ```json
   { "clave": "api_key", "valor": "<valor descifrado>" }
@@ -56,7 +56,7 @@ Servicio en local con `docker compose up`: `http://localhost:8001` (puerto inter
 
 - `POST /auth/register`: registro de un usuario con rol `analista`.
   - Request: `{ "username", "password" (mínimo 8 caracteres), "email" }`.
-  - Response `201`: igual que el login (`token` y `user`). Errores: `400` datos no válidos · `409` usuario o email ya existentes.
+  - Response `201`: igual que el login (`token` y `user`). Errores: `400` datos no válidos · `409` usuario o email ya existentes o reservados (`admin`, `servicio`, `svc-*`).
 - `GET /health`: estado del servicio (`{ "status": "ok", "module": "01-identidad" }`). Lo usa el CI.
 
 ## Roles

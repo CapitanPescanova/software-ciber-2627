@@ -4,7 +4,7 @@ Equipo 01 - **CypherGate**
 
 Servicio transversal del que dependen los otros 7 módulos: **autenticación, roles y almacén de secretos**.
 
-## Estado (Sprint 2)
+## Estado (Sprint 3)
 
 | Elemento | Estado |
 |---|---|
@@ -14,7 +14,9 @@ Servicio transversal del que dependen los otros 7 módulos: **autenticación, ro
 | Límite de intentos de login (5 fallos en 15 min por usuario e IP; `429` con `Retry-After`) | Implementado |
 | `GET /auth/validate` | Implementado |
 | `POST /auth/logout` (revoca el token por su `jti`) | Implementado |
-| `GET /secrets/{clave}` (solo rol `servicio`, AES-GCM) | Implementado |
+| `GET /secrets/{clave}` (AES-GCM; cada secreto solo lo lee la cuenta de servicio dueña, `403` para las demás) | Implementado |
+| Una cuenta de servicio por módulo (`svc-*`, desde variables de entorno; nombres reservados en el registro) | Implementado |
+| Secreto `siem_db_password` para el SIEM (dueño `svc-siem`) | Implementado |
 | Registro de auditoría interno y envío de logs al IDS (`POST /logs` del módulo 2, lotes de hasta 200, con reintentos si el IDS cae) | Implementado |
 | CORS para el Dashboard (`http://localhost:8007`, en login, register, validate y logout) | Implementado |
 | Rotación manual de secretos | Sprint 3 |
@@ -26,10 +28,11 @@ Servicio transversal del que dependen los otros 7 módulos: **autenticación, ro
 - Registro e inicio de sesión de usuarios y emisión de un **JWT**.
 - **Roles fijos:** `admin`, `analista`, `servicio`.
 - **Validación de token** para que el resto de módulos compruebe sesión y rol (`GET /auth/validate`).
-- **Almacén de secretos** clave-valor cifrado en reposo (AES), con rotación manual, accesible solo al rol `servicio`.
+- **Cuentas de servicio por módulo** (`svc-ids`, `svc-siem`…), creadas solo desde variables de entorno.
+- **Almacén de secretos** clave-valor cifrado en reposo (AES-256-GCM). Cada secreto tiene una cuenta dueña y solo ella lo lee. Rotación manual prevista en el Sprint 3.
 - **Registro de auditoría interno** de los intentos de login y de los accesos a secretos. No se consulta por la API: se envía al IDS en lotes (`source` `01-identidad`), con líneas syslog al estilo OpenSSH, ids estables y orden cronológico. Si el IDS no responde, los eventos quedan pendientes y se reintentan con espera creciente sin bloquear el login.
 
-**Fuera de alcance:** SSO con proveedores externos, MFA, rotación automática de secretos y permisos granulares por recurso.
+**Fuera de alcance:** SSO con proveedores externos, MFA, rotación automática de secretos y permisos más finos que el dueño de cada secreto.
 
 ## Endpoints
 
@@ -40,7 +43,7 @@ Servicio transversal del que dependen los otros 7 módulos: **autenticación, ro
 | `POST /auth/login` | Usuarios | Login; devuelve JWT. `429` tras 5 fallos seguidos |
 | `POST /auth/logout` | Usuarios | Revoca el token actual |
 | `GET /auth/validate` | Los otros 7 módulos | Valida un token y devuelve usuario y rol |
-| `GET /secrets/{clave}` | Solo rol `servicio` | Devuelve un secreto descifrado |
+| `GET /secrets/{clave}` | La cuenta de servicio dueña del secreto | Devuelve un secreto descifrado (`403` si es de otro módulo) |
 
 Detalle completo y códigos de error: [`contract/openapi.yaml`](./contract/openapi.yaml) y [`shared/auth-contract.md`](../../shared/auth-contract.md).
 
