@@ -10,6 +10,7 @@ import org.mockito.ArgumentCaptor;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -51,6 +52,24 @@ class SiemSenderServiceAuthTest {
         ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
         verify(httpClient, times(1)).send(captor.capture(), any(HttpResponse.BodyHandler.class));
         assertEquals("Bearer token-valido", captor.getValue().headers().firstValue("Authorization").orElse(""));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void ante200ConEventIdDistintoRechazaAcuseYGuardaEnCola() throws Exception {
+        when(pendientes.count()).thenReturn(0L);
+        when(authService.getToken()).thenReturn("token-valido");
+
+        HttpResponse<String> badAckResponse = mockResponse(200, "{\"status\":\"accepted\",\"event_id\":\"otro-id-999\"}");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(badAckResponse);
+
+        int status = senderService.enviarEvento(SAMPLE_EVENT, 15L);
+
+        assertEquals(-1, status);
+        ArgumentCaptor<EventoPendiente> captor = ArgumentCaptor.forClass(EventoPendiente.class);
+        verify(pendientes, times(1)).save(captor.capture());
+        assertEquals(SAMPLE_EVENT, captor.getValue().getJson());
+        assertEquals(15L, captor.getValue().getAttemptId());
     }
 
     @Test
@@ -114,6 +133,23 @@ class SiemSenderServiceAuthTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void anteTimeoutGuardaEnColaConservandoMismoJson() throws Exception {
+        when(pendientes.count()).thenReturn(0L);
+        when(authService.getToken()).thenReturn("token-valido");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenThrow(new HttpTimeoutException("request timed out"));
+
+        int status = senderService.enviarEvento(SAMPLE_EVENT, 16L);
+
+        assertEquals(-1, status);
+        ArgumentCaptor<EventoPendiente> captor = ArgumentCaptor.forClass(EventoPendiente.class);
+        verify(pendientes, times(1)).save(captor.capture());
+        assertEquals(SAMPLE_EVENT, captor.getValue().getJson());
+        assertEquals(16L, captor.getValue().getAttemptId());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void ante409ConsideraRechazoDefinitivoYNoEncola() throws Exception {
         when(pendientes.count()).thenReturn(0L);
         when(authService.getToken()).thenReturn("token-valido");
@@ -125,6 +161,26 @@ class SiemSenderServiceAuthTest {
 
         assertEquals(409, status);
         verify(pendientes, never()).save(any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void reintentoDesdeColaDescartaEventoAnte409Conflict() throws Exception {
+        LoginAttemptRepository loginRepo = mock(LoginAttemptRepository.class);
+        ReintentoSiemService reintentoService = new ReintentoSiemService(pendientes, loginRepo, senderService);
+
+        EventoPendiente pendiente = new EventoPendiente(SAMPLE_EVENT, 17L);
+        when(pendientes.findTop100ByOrderByIdAsc()).thenReturn(List.of(pendiente));
+        when(authService.getToken()).thenReturn("token-cola");
+
+        HttpResponse<String> res409 = mockResponse(409, "{\"error\":\"EVENT_ID_CONFLICT\"}");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(res409);
+
+        int enviados = reintentoService.reintentarPendientes();
+
+        assertEquals(0, enviados);
+        verify(pendientes, times(1)).delete(pendiente);
+        verify(loginRepo, never()).findById(any());
     }
 
     @Test

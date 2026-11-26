@@ -112,6 +112,25 @@ class IdentidadAuthServiceTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void usaBackoffPorDefectoDe60SegundosSi429NoTraeRetryAfter() throws Exception {
+        HttpResponse<String> res429 = mockResponse(429, "{\"error\":\"rate_limited\"}", Map.of());
+        HttpResponse<String> res200 = mockResponse(200, "{\"token\":\"jwt-tras-60s\"}", Map.of());
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(res429, res200);
+
+        assertThrows(IdentidadAuthException.class, () -> authService.getToken());
+
+        clock.advance(Duration.ofSeconds(59));
+        assertThrows(IdentidadAuthException.class, () -> authService.getToken());
+        verify(httpClient, times(1)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+
+        clock.advance(Duration.ofSeconds(2));
+        assertEquals("jwt-tras-60s", authService.getToken());
+        verify(httpClient, times(2)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+    }
+
+    @Test
     void fallaSiNoHayContrasenaConfigurada() {
         IdentidadProperties sinPass = new IdentidadProperties("http://identidad:80", "svc-honeypot", "", 120);
         IdentidadAuthService serviceSinPass = new IdentidadAuthService(sinPass, httpClient, clock);
