@@ -1,11 +1,5 @@
 package com.honeypot.honeypot.service;
 
-import com.honeypot.honeypot.config.IdentidadProperties;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -16,6 +10,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.honeypot.honeypot.config.IdentidadProperties;
 
 @Service
 public class IdentidadAuthService {
@@ -213,5 +214,19 @@ public class IdentidadAuthService {
         public IdentidadAuthException(String message, Throwable cause) {
             super(message, cause);
         }
+    }
+    static IdentidadAuthService paraTests(String fixedToken) {
+        IdentidadProperties dummyProps = new IdentidadProperties("http://localhost:8081", "svc-honeypot", "dummy", 120);
+        return new IdentidadAuthService(dummyProps, null, Clock.systemUTC()) {
+            @Override
+            public String getToken() {
+                return fixedToken;
+            }
+
+            @Override
+            public void invalidateToken() {
+                // No-op en tests heredados
+            }
+        };
     }
 }
