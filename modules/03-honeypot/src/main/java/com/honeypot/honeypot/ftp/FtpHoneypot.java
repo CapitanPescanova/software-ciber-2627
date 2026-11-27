@@ -19,6 +19,7 @@ import org.apache.ftpserver.listener.Listener;
 import org.apache.ftpserver.listener.nio.NioListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.honeypot.honeypot.service.FtpEventService;
@@ -38,6 +39,10 @@ public class FtpHoneypot {
             LoggerFactory.getLogger(FtpHoneypot.class);
     private static final Set<String> COMMANDS_ALLOWED_BEFORE_LOGIN =
             Set.of("USER", "PASS", "AUTH", "QUIT", "PROT", "PBSZ");
+    static final String USUARIO_SESION = "honeypot.ftp.usuario";
+
+    @Value("${honeypot.ftp.port:2121}")
+    private int port;
 
     private FtpServer server;
     private final FtpEventService ftpEventService;
@@ -53,7 +58,7 @@ public class FtpHoneypot {
             FtpServerFactory serverFactory = new FtpServerFactory();
 
             ListenerFactory listenerFactory = new ListenerFactory();
-            listenerFactory.setPort(2121);
+            listenerFactory.setPort(port);
 
             Listener listener = listenerFactory.createListener();
             installPreAuthenticationHandler(listener);
@@ -69,7 +74,7 @@ public class FtpHoneypot {
             server = serverFactory.createServer();
             server.start();
 
-            log.info("FTP HONEYPOT iniciado en puerto 2121");
+            log.info("FTP HONEYPOT iniciado en puerto {}", port);
 
         } catch (Exception e) {
             log.error("Error iniciando FTP Honeypot", e);
@@ -95,6 +100,14 @@ public class FtpHoneypot {
             InetSocketAddress clientAddress,
             FtpRequest request,
             String command) {
+        registrarComando(clientAddress, request, command, null);
+    }
+
+    private void registrarComando(
+            InetSocketAddress clientAddress,
+            FtpRequest request,
+            String command,
+            String usuarioSesion) {
 
         try {
             String sourceIp = clientAddress
@@ -104,7 +117,8 @@ public class FtpHoneypot {
             ftpEventService.registrarComando(
                     sourceIp,
                     command,
-                    request.getArgument()
+                    request.getArgument(),
+                    usuarioSesion
             );
         } catch (RuntimeException e) {
             log.error(
@@ -117,6 +131,17 @@ public class FtpHoneypot {
 
     private final class PreAuthenticationFtpHandler
             extends DefaultFtpHandler {
+
+        @Override
+        public void sessionCreated(FtpIoSession session) throws Exception {
+            InetSocketAddress clientAddress = session.getFtpletSession().getClientAddress();
+            try {
+                ftpEventService.registrarConexion(clientAddress.getAddress().getHostAddress());
+            } catch (RuntimeException e) {
+                log.error("No se pudo registrar la conexion al servicio FTP", e);
+            }
+            super.sessionCreated(session);
+        }
 
         @Override
         public void messageReceived(FtpIoSession session, FtpRequest request)
@@ -139,6 +164,11 @@ public class FtpHoneypot {
         }
     }
 
+    static String usuarioDeSesion(FtpSession session) {
+        Object usuario = session.getAttribute(USUARIO_SESION);
+        return usuario instanceof String ? (String) usuario : null;
+    }
+
     Ftplet createFtplet() {
 
         return new DefaultFtplet() {
@@ -152,14 +182,28 @@ public class FtpHoneypot {
                 String command =
                         request.getCommand().toUpperCase(Locale.ROOT);
 
+                // al PASS se le pasa el USER guardado en esta sesión
+                String usuarioSesion = "PASS".equals(command)
+                        ? usuarioDeSesion(session)
+                        : null;
+
                 registrarComando(
                         session.getClientAddress(),
                         request,
-                        command
+                        command,
+                        usuarioSesion
                 );
 
                 // Usuario: permitir continuar hasta la autenticación
                 if ("USER".equals(command)) {
+
+                    //recordar el USER de esta sesión (sustituye al anterior)
+                    String usuario = request.getArgument();
+                    if (usuario == null || usuario.isBlank()) {
+                        session.removeAttribute(USUARIO_SESION);
+                    } else {
+                        session.setAttribute(USUARIO_SESION, usuario);
+                    }
 
                     session.write(
                             new DefaultFtpReply(
@@ -199,6 +243,15 @@ public class FtpHoneypot {
                     return FtpletResult.SKIP;
                 }
 
+                return FtpletResult.DEFAULT;
+            }
+
+            @Override
+            public FtpletResult onDisconnect(FtpSession session)
+                    throws FtpException, IOException {
+
+                //al cerrar la conexión se olvida el USER guardado
+                session.removeAttribute(USUARIO_SESION);
                 return FtpletResult.DEFAULT;
             }
         };
