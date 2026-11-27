@@ -62,7 +62,8 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 5s
+      # Con medio núcleo tarda más de un minuto en arrancar (HP-123)
+      start_period: 120s
 
     restart: unless-stopped
 
