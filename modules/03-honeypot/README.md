@@ -21,7 +21,7 @@ Nada obligatorio. Si el SIEM no responde, los intentos se guardan igual. Para pr
 - *Sin Docker* (desde `modules/03-honeypot`, con Java 21 o superior): `./mvnw spring-boot:run` → `http://localhost:8080/login`
 - *SSH:* `ssh -p 2222 root@localhost` · *FTP:* cualquier cliente FTP contra `localhost:2121`
 - *Pruebas:* `./mvnw test`
-- *Mock del SIEM:* `java mocks/SiemMockServer.java` (escucha `POST /events` en el puerto `8081`)
+- *Mock del SIEM:* `java mocks/SiemIdentidadMockServer.java` (escucha `POST /events` en el puerto `8081`)
 
 ### Ejecución integrada con el SIEM real (Docker Compose)
 

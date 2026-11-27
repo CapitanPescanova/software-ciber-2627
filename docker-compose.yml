@@ -49,6 +49,8 @@ services:
     environment:
       - HONEYPOT_SSH_HOSTKEY=/http/data/hostkey.ser
       - SIEM_URL=http://siem:80/events
+      - IDENTIDAD_URL=${IDENTIDAD_URL:-http://identidad:80}
+      - SERVICE_PASSWORD_HONEYPOT=${SERVICE_PASSWORD_HONEYPOT:-}
     volumes:
       - honeypot-data:/http/data
     networks:
