@@ -40,6 +40,7 @@ public class FtpHoneypot {
     private static final Set<String> COMMANDS_ALLOWED_BEFORE_LOGIN =
             Set.of("USER", "PASS", "AUTH", "QUIT", "PROT", "PBSZ");
     static final String USUARIO_SESION = "honeypot.ftp.usuario";
+    private static final String CLAVE_SESION = "honeypot.ftp.clave-sesion";
 
     @Value("${honeypot.ftp.port:2121}")
     private int port;
@@ -136,7 +137,11 @@ public class FtpHoneypot {
         public void sessionCreated(FtpIoSession session) throws Exception {
             InetSocketAddress clientAddress = session.getFtpletSession().getClientAddress();
             try {
-                ftpEventService.registrarConexion(clientAddress.getAddress().getHostAddress());
+                FtpSession ftpSession = session.getFtpletSession();
+                String claveSesion = "ftp-" + System.identityHashCode(ftpSession);
+                ftpSession.setAttribute(CLAVE_SESION, claveSesion);
+                ftpEventService.registrarConexion(
+                        clientAddress.getAddress().getHostAddress(), claveSesion);
             } catch (RuntimeException e) {
                 log.error("No se pudo registrar la conexion al servicio FTP", e);
             }
@@ -167,6 +172,11 @@ public class FtpHoneypot {
     static String usuarioDeSesion(FtpSession session) {
         Object usuario = session.getAttribute(USUARIO_SESION);
         return usuario instanceof String ? (String) usuario : null;
+    }
+
+    private static String claveDeSesion(FtpSession session) {
+        Object clave = session.getAttribute(CLAVE_SESION);
+        return clave instanceof String ? (String) clave : null;
     }
 
     Ftplet createFtplet() {
@@ -218,6 +228,7 @@ public class FtpHoneypot {
                 // Contraseña: rechazar autenticación
                 if ("PASS".equals(command)) {
 
+                    ftpEventService.marcarCredencial(claveDeSesion(session));
                     session.write(
                             new DefaultFtpReply(
                                     530,
@@ -252,6 +263,12 @@ public class FtpHoneypot {
 
                 //al cerrar la conexión se olvida el USER guardado
                 session.removeAttribute(USUARIO_SESION);
+                InetSocketAddress clientAddress = session.getClientAddress();
+                if (clientAddress != null) {
+                    ftpEventService.registrarCierreSinCredenciales(
+                            clientAddress.getAddress().getHostAddress(),
+                            claveDeSesion(session));
+                }
                 return FtpletResult.DEFAULT;
             }
         };

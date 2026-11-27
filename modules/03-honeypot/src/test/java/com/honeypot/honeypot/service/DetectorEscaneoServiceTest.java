@@ -7,12 +7,12 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.io.IOException;
+import java.net.InetAddress;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,33 +39,98 @@ class DetectorEscaneoServiceTest {
     @MockitoBean
     private SiemSenderService siemSenderService;
 
+    @Autowired
+    private DetectorEscaneoService detectorEscaneoService;
+
+    @BeforeEach
+    void reiniciarDetector() {
+        detectorEscaneoService.reiniciarEstado();
+    }
+
     @Test
-    void escaneoTcpEnDosServiciosSeGuardaYSeEnviaAlSiemComoEscaneo() throws Exception {
+    void unaSolaConexionFTPSeGuardaYSeEnviaAlSiemComoEscaneo() throws Exception {
         when(siemSenderService.enviarEvento(anyString(), any())).thenReturn(201);
 
-        escanearConNmapSiDisponible();
+        try (Socket ftp = new Socket("127.0.0.1", FTP_PORT,
+                InetAddress.getByName("127.0.0.2"), 0)) {
+            assertThat(ftp.isConnected()).isTrue();
+        }
 
-        List<Map<String, Object>> scanEvents = esperarEventoPersistido();
+        List<Map<String, Object>> scanEvents = esperarEventoPersistido("127.0.0.2");
         assertThat(scanEvents).isNotEmpty();
 
         Map<String, Object> scanEvent = scanEvents.get(0);
         Long attemptId = ((Number) scanEvent.get("id")).longValue();
-        assertThat(scanEvent.get("source_ip")).isEqualTo("127.0.0.1");
+        assertThat(scanEvent.get("source_ip")).isEqualTo("127.0.0.2");
         assertThat(scanEvent.get("service_attacked")).isEqualTo("honeypot-scan");
         assertThat(scanEvent.get("tipo_ataque")).isEqualTo("escaneo");
         assertThat(scanEvent.get("attempted_command").toString())
-                .contains("ftp", "ssh");
+                .contains("ftp")
+                .doesNotContain("ssh");
 
         var jsonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         var idCaptor = org.mockito.ArgumentCaptor.forClass(Long.class);
-        verify(siemSenderService, timeout(3000)).enviarEvento(jsonCaptor.capture(), idCaptor.capture());
-        assertThat(idCaptor.getValue()).isEqualTo(attemptId);
-        assertThat(jsonCaptor.getValue())
-                .contains("\"event_id\":\"HP-" + attemptId + "\"")
-                .contains("\"event_type\":\"escaneo\"")
-                .doesNotContain("\"event_type\":\"nmap\"");
+        verify(siemSenderService, timeout(3000).atLeastOnce())
+                .enviarEvento(jsonCaptor.capture(), idCaptor.capture());
+        assertThat(idCaptor.getAllValues()).contains(attemptId);
+        assertThat(jsonCaptor.getAllValues()).anySatisfy(json ->
+                assertThat(json)
+                        .contains("\"event_id\":\"HP-" + attemptId + "\"")
+                        .contains("\"event_type\":\"escaneo\"")
+                        .doesNotContain("\"event_type\":\"nmap\""));
 
         assertThat(esperarMarcadoComoEnviado(attemptId)).isTrue();
+    }
+
+    @Test
+    void unaSolaConexionSSHSinCredencialesSeGuardaComoEscaneo() throws Exception {
+        when(siemSenderService.enviarEvento(anyString(), any())).thenReturn(201);
+
+        try (Socket ssh = new Socket("127.0.0.1", SSH_PORT,
+                InetAddress.getByName("127.0.0.3"), 0)) {
+            assertThat(ssh.isConnected()).isTrue();
+        }
+
+        List<Map<String, Object>> scanEvents = esperarEventoPersistido("127.0.0.3");
+        assertThat(scanEvents).isNotEmpty();
+        assertThat(scanEvents.get(0).get("attempted_command").toString()).contains("ssh");
+        assertThat(scanEvents.get(0).get("attempted_command").toString()).doesNotContain("ftp");
+    }
+
+    @Test
+    void cerrarFTPDespuesDeEnviarCredencialesNoGeneraEscaneoPorConexionUnica() throws Exception {
+        try (Socket ftp = new Socket("127.0.0.1", FTP_PORT,
+                InetAddress.getByName("127.0.0.4"), 0);
+                var output = ftp.getOutputStream()) {
+            output.write("USER test\r\nPASS secreto\r\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            output.flush();
+        }
+
+        Thread.sleep(300);
+        Long scanEvents = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM login_attempts WHERE source_ip = ? AND tipo_ataque = 'escaneo'",
+                Long.class, "127.0.0.4");
+        assertThat(scanEvents).isZero();
+    }
+
+    @Test
+    void escaneoTcpSimuladoConSocketsJavaEnDosPuertosGeneraEvento() throws Exception {
+        when(siemSenderService.enviarEvento(anyString(), any())).thenReturn(201);
+        try (Socket ftp = new Socket("127.0.0.1", FTP_PORT,
+                InetAddress.getByName("127.0.0.5"), 0);
+                Socket ssh = new Socket("127.0.0.1", SSH_PORT,
+                        InetAddress.getByName("127.0.0.5"), 0)) {
+            assertThat(ftp.isConnected()).isTrue();
+            assertThat(ssh.isConnected()).isTrue();
+
+            List<Map<String, Object>> scanEvents = esperarEventoPersistido("127.0.0.5");
+            assertThat(scanEvents).isNotEmpty();
+            assertThat(scanEvents.get(0).get("service_attacked")).isEqualTo("honeypot-scan");
+            assertThat(scanEvents.get(0).get("tipo_ataque")).isEqualTo("escaneo");
+            assertThat(scanEvents.get(0).get("attempted_command").toString())
+                    .contains("ftp")
+                    .contains("honeypot-ssh");
+        }
     }
 
     private boolean esperarMarcadoComoEnviado(Long attemptId) throws InterruptedException {
@@ -81,7 +146,7 @@ class DetectorEscaneoServiceTest {
         return false;
     }
 
-    private List<Map<String, Object>> esperarEventoPersistido() throws InterruptedException {
+    private List<Map<String, Object>> esperarEventoPersistido(String ip) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
         List<Map<String, Object>> scanEvents = List.of();
         while (System.nanoTime() < deadline && scanEvents.isEmpty()) {
@@ -90,7 +155,7 @@ class DetectorEscaneoServiceTest {
                             + "FROM login_attempts "
                             + "WHERE source_ip = ? AND service_attacked = 'honeypot-scan' "
                             + "AND tipo_ataque = 'escaneo'",
-                    "127.0.0.1"
+                    ip
             );
             if (scanEvents.isEmpty()) {
                 Thread.sleep(25);
@@ -99,30 +164,4 @@ class DetectorEscaneoServiceTest {
         return scanEvents;
     }
 
-    private void escanearConNmapSiDisponible() throws Exception {
-        Process nmap;
-        try {
-            nmap = new ProcessBuilder(
-                    "nmap", "-sT", "-Pn", "-n", "--reason", "-p",
-                    FTP_PORT + "," + SSH_PORT, "127.0.0.1")
-                    .redirectErrorStream(true)
-                    .start();
-        } catch (IOException e) {
-            try (Socket ftp = new Socket("127.0.0.1", FTP_PORT);
-                    Socket ssh = new Socket("127.0.0.1", SSH_PORT)) {
-                assertThat(ftp.isConnected()).isTrue();
-                assertThat(ssh.isConnected()).isTrue();
-            }
-            return;
-        }
-
-        if (!nmap.waitFor(15, TimeUnit.SECONDS)) {
-            nmap.destroyForcibly();
-            throw new IllegalStateException("Nmap no termino el escaneo TCP local en 15 segundos");
-        }
-
-        String output = new String(nmap.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        assertThat(nmap.exitValue()).withFailMessage(output).isZero();
-        assertThat(output).contains(FTP_PORT + "/tcp open", SSH_PORT + "/tcp open");
-    }
 }

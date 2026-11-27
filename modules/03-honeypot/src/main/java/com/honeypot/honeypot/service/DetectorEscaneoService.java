@@ -23,6 +23,7 @@ public class DetectorEscaneoService {
     private static final long VENTANA_MINUTOS = 5;
 
     private final Map<String, EstadoIp> contactosPorIp = new LinkedHashMap<>();
+    private final Map<String, String> sesionesSinCredenciales = new LinkedHashMap<>();
     private final LoginAttemptRepository loginAttemptRepository;
     private final EventoMapper eventoMapper;
     private final SiemSenderService siemSenderService;
@@ -38,6 +39,59 @@ public class DetectorEscaneoService {
         this.siemSenderService = siemSenderService;
     }
 
+    public void registrarConexion(String ip, String servicio, Instant momento, String claveSesion) {
+        if (claveSesion == null || claveSesion.isBlank()) {
+            return;
+        }
+        synchronized (this) {
+            sesionesSinCredenciales.put(claveSesion, ip);
+        }
+        registrarContacto(ip, servicio, momento);
+    }
+
+    public void marcarCredencial(String claveSesion) {
+        if (claveSesion == null || claveSesion.isBlank()) {
+            return;
+        }
+        synchronized (this) {
+            sesionesSinCredenciales.remove(claveSesion);
+        }
+    }
+
+    public void registrarCierreSinCredenciales(
+            String ip,
+            String servicio,
+            Instant momento,
+            String claveSesion
+    ) {
+        if (ip == null || ip.isBlank() || servicio == null || servicio.isBlank()
+                || momento == null || claveSesion == null || claveSesion.isBlank()) {
+            return;
+        }
+
+        List<String> serviciosDetectados;
+        LoginAttempt intentoEscaneo;
+        synchronized (this) {
+            if (!ip.equals(sesionesSinCredenciales.remove(claveSesion))) {
+                return;
+            }
+
+            Instant limite = momento.minus(VENTANA_MINUTOS, ChronoUnit.MINUTES);
+            EstadoIp estado = contactosPorIp.computeIfAbsent(ip, ignored -> new EstadoIp());
+            estado.ultimosContactos.entrySet().removeIf(entry -> !entry.getValue().isAfter(limite));
+            estado.ultimosContactos.put(servicio, momento);
+            if (estado.eventoEmitido) {
+                return;
+            }
+
+            estado.eventoEmitido = true;
+            serviciosDetectados = List.copyOf(estado.ultimosContactos.keySet());
+            intentoEscaneo = crearIntentoEscaneo(ip, momento, serviciosDetectados);
+        }
+
+        guardarYEnviar(intentoEscaneo, serviciosDetectados);
+    }
+
     public void registrarContacto(String ip, String servicio, Instant momento) {
         if (ip == null || ip.isBlank() || servicio == null || servicio.isBlank() || momento == null) {
             log.warn("No se pudo evaluar un contacto para detectar escaneos: faltan IP, servicio o momento");
@@ -50,7 +104,7 @@ public class DetectorEscaneoService {
             Instant limite = momento.minus(VENTANA_MINUTOS, ChronoUnit.MINUTES);
             EstadoIp estado = contactosPorIp.computeIfAbsent(ip, ignored -> new EstadoIp());
             estado.ultimosContactos.entrySet().removeIf(entry -> !entry.getValue().isAfter(limite));
-            if (estado.ultimosContactos.size() < 2) {
+            if (estado.ultimosContactos.isEmpty()) {
                 estado.eventoEmitido = false;
             }
             estado.ultimosContactos.put(servicio, momento);
@@ -65,6 +119,11 @@ public class DetectorEscaneoService {
         }
 
         guardarYEnviar(intentoEscaneo, serviciosDetectados);
+    }
+
+    public synchronized void reiniciarEstado() {
+        contactosPorIp.clear();
+        sesionesSinCredenciales.clear();
     }
 
     @Scheduled(fixedDelayString = "${honeypot.escaneo.limpieza-ms:60000}")
